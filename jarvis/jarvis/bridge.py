@@ -61,6 +61,7 @@ def build_claude_command(settings: config.Settings, *, continue_session: bool) -
         "--tools", "",                 # no built-in tools: the brain can ONLY use jarvis hands
         "--allowedTools", "mcp__jarvis",
         "--output-format", "json",
+        "--model", settings.claude_model,
     ]
     if continue_session:
         cmd.append("--continue")       # keep conversational memory between voice commands
@@ -97,6 +98,9 @@ def describe_claude_failure(code: int, result: dict, stderr: str, stdout: str) -
         lines.append(f"  blocked tool: {denial.get('tool_name', denial)}")
     if stderr.strip():
         lines.append("  stderr:  " + stderr.strip()[-800:])
+    if "limit" in str(result.get("result", "")).lower():
+        lines.append("  ➜ Not a Jarvis bug: your Claude plan's usage limit is used up. Wait for the reset "
+                     "time above, or upgrade the plan. Claude Desktop, Claude Code and Jarvis share it.")
     if not result and stdout.strip():
         lines.append("  output:  " + stdout.strip()[-800:])
     return "\n".join(lines)

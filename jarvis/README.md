@@ -74,6 +74,7 @@ Install [Tailscale](https://tailscale.com) on the laptop and the phone. Start th
 | `JARVIS_ALLOWED_DIRS` | *(none)* | Extra folders the hands may access, separated by `;` |
 | `JARVIS_HOME/apps.json` | notepad, calculator, … | Spoken name → executable allowlist |
 | `JARVIS_GEMINI_MODEL` | `gemini-3.8-flash` | Ears model |
+| `JARVIS_CLAUDE_MODEL` | `sonnet` | Brain model alias (`opus` is stronger but uses your plan's limit faster) |
 | `JARVIS_APPROVAL_WAIT_S` | `45` | How long a dangerous action waits for your click |
 
 ## Design notes and limits

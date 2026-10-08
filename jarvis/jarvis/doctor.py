@@ -55,7 +55,7 @@ def check_hands_server(settings: config.Settings) -> bool:
 
 
 def check_claude_login(exe: str, settings: config.Settings) -> bool:
-    cmd = [exe, "-p", "--tools", "", "--output-format", "json"]
+    cmd = [exe, "-p", "--tools", "", "--output-format", "json", "--model", settings.claude_model]
     try:
         result = run_claude(cmd, "Reply with exactly the word: pong", cwd=settings.home)
     except BrainError as exc:
@@ -93,6 +93,7 @@ def main() -> int:
     print("Jarvis doctor")
     print(f"  Python {sys.version.split()[0]} at {sys.executable}")
     print(f"  JARVIS_HOME = {settings.home}")
+    print(f"  Claude model for Jarvis = {settings.claude_model}")
 
     _step(1, "Claude Code command-line tool")
     exe = check_claude_cli()
