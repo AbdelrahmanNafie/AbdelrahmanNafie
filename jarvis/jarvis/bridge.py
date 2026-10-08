@@ -22,7 +22,7 @@ import wave
 from pathlib import Path
 
 from . import config
-from .ears import Heard, understand
+from .ears import EarsError, Heard, understand
 from .store import Store
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -164,6 +164,28 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("give --text, --audio or --mic")
 
     store = Store(settings.db_path)
+    try:
+        heard = _listen(args, settings, store)
+    except EarsError as exc:
+        store.log("ears", "failed", str(exc)[:1000])
+        print(f"❌ {exc}")
+        return 1
+    if heard is None:
+        return 0
+    if args.to == "print":
+        return 0
+
+    try:
+        answer = ask_brain(settings, store, heard, new_session=args.new_session)
+    except BrainError as exc:
+        print(f"❌ {exc}\n\nRun `python -m jarvis.doctor` to check each part step by step.")
+        return 1
+    print(f"🧠 {answer}")
+    return 0
+
+
+def _listen(args: argparse.Namespace, settings: config.Settings, store: Store) -> Heard | None:
+    """Ears step. Returns None when nothing intelligible was heard."""
     if args.text:
         store.log("ears", "heard", "typed input", chars=len(args.text))
         heard = understand(text=args.text, model=settings.gemini_model)
@@ -177,16 +199,7 @@ def main(argv: list[str] | None = None) -> int:
     store.log("ears", "understood", heard.english or "(nothing intelligible)",
               original=heard.original, language=heard.language)
     print(f"👂 [{heard.language}] {heard.original}\n   → {heard.english}")
-    if not heard.english or args.to == "print":
-        return 0
-
-    try:
-        answer = ask_brain(settings, store, heard, new_session=args.new_session)
-    except BrainError as exc:
-        print(f"❌ {exc}\n\nRun `python -m jarvis.doctor` to check each part step by step.")
-        return 1
-    print(f"🧠 {answer}")
-    return 0
+    return heard if heard.english else None
 
 
 if __name__ == "__main__":

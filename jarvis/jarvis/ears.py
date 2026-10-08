@@ -25,6 +25,29 @@ If the audio is silent or unintelligible, set english to an empty string.
 """
 
 
+class EarsError(RuntimeError):
+    """Gemini could not be used; the message is meant for humans."""
+
+
+_HINTS = {
+    400: "The request or API key is invalid. Create a new key at https://aistudio.google.com/apikey.",
+    401: "The API key was rejected. Create a new key at https://aistudio.google.com/apikey.",
+    402: "This key's Google project has no credits (prepay billing). Open https://aistudio.google.com/projects, "
+         "check Billing for this project, or create a key in a different project.",
+    403: "This key is not allowed to use the Gemini API. Check the key's project at https://aistudio.google.com/apikey.",
+    404: "The model name was not found. Set JARVIS_GEMINI_MODEL to a current model.",
+    429: "Too many requests or free quota used up. Wait a minute and try again.",
+}
+
+
+def _key_source() -> str:
+    for name in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
+        value = os.environ.get(name)
+        if value:
+            return f"{name} (ends with ...{value[-4:]})"
+    return "no key set"
+
+
 class Heard(BaseModel):
     original: str = Field(description="Verbatim transcript in the original language/script")
     language: Literal["egyptian_arabic", "msa", "english", "mixed", "unknown"]
@@ -45,19 +68,26 @@ def understand(*, text: str | None = None, audio: bytes | None = None, mime_type
 
     if client is None:
         if not os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
-            raise RuntimeError("Set GEMINI_API_KEY to use Gemini for Arabic or audio input")
+            raise EarsError("Set GEMINI_API_KEY to use Gemini for Arabic or audio input")
         client = genai.Client()
 
+    from google.genai import errors
+
     payload = [types.Part.from_bytes(data=audio, mime_type=mime_type)] if audio is not None else [text]
-    response = client.models.generate_content(
-        model=model,
-        contents=[EARS_PROMPT, *payload],
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=Heard,
-            temperature=0,
-        ),
-    )
+    try:
+        response = client.models.generate_content(
+            model=model,
+            contents=[EARS_PROMPT, *payload],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=Heard,
+                temperature=0,
+            ),
+        )
+    except errors.APIError as exc:
+        hint = _HINTS.get(exc.code, "Gemini returned an error; see the message above.")
+        raise EarsError(f"Gemini error {exc.code} {exc.status}: {exc.message}\n"
+                        f"  key used: {_key_source()}\n  ➜ {hint}") from exc
     if isinstance(response.parsed, Heard):
         return response.parsed
     return Heard.model_validate_json(response.text)
