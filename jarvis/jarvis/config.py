@@ -27,6 +27,7 @@ class Settings:
     db_path: Path
     apps: dict[str, str]
     gemini_model: str
+    gemini_fallbacks: tuple[str, ...]  # tried in order when the main model is busy
     claude_model: str  # alias for the brain; lighter models stretch your plan's usage limit
     # How long a dangerous action waits for a human click. Must stay below the
     # MCP client's tool timeout (~60 s in Claude Code by default), or Claude gives
@@ -66,6 +67,8 @@ def load() -> Settings:
         db_path=home / "jarvis.db",
         apps=apps,
         gemini_model=os.environ.get("JARVIS_GEMINI_MODEL", "gemini-3.8-flash"),
+        gemini_fallbacks=tuple(m.strip() for m in os.environ.get(
+            "JARVIS_GEMINI_FALLBACKS", "gemini-3.5-flash,gemini-3.5-flash-lite").split(",") if m.strip()),
         claude_model=os.environ.get("JARVIS_CLAUDE_MODEL", "sonnet"),
         approval_wait_s=float(os.environ.get("JARVIS_APPROVAL_WAIT_S", "45")),
     )

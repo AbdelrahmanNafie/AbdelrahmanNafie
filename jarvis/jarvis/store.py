@@ -59,6 +59,10 @@ class Store:
                 (time.time(), stage, kind, summary, json.dumps(data, ensure_ascii=False, default=str)),
             )
 
+    def last_event_id(self) -> int:
+        with self._conn() as c:
+            return c.execute("SELECT COALESCE(MAX(id), 0) FROM events").fetchone()[0]
+
     def events(self, after_id: int = 0, limit: int = 200) -> list[dict[str, Any]]:
         with self._conn() as c:
             rows = c.execute(

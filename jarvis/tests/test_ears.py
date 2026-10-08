@@ -46,3 +46,34 @@ def test_gemini_billing_error_becomes_a_clear_message(monkeypatch):
         understand(text="افتح", client=SimpleNamespace(models=Models()))
     msg = str(exc.value)
     assert "402" in msg and "...1234" in msg and "aistudio.google.com/projects" in msg
+
+
+def test_busy_model_falls_back_to_next(monkeypatch):
+    from google.genai import errors
+
+    tried = []
+
+    class Models:
+        def generate_content(self, *, model, contents, config):
+            tried.append(model)
+            if model == "main":
+                raise errors.ServerError(503, {"error": {"code": 503, "status": "UNAVAILABLE",
+                                                         "message": "high demand"}})
+            return SimpleNamespace(parsed=Heard(original="x", language="egyptian_arabic", english="Open WhatsApp"))
+
+    h = understand(text="افتح الواتساب", model="main", fallbacks=("backup", "third"),
+                   client=SimpleNamespace(models=Models()))
+    assert tried == ["main", "backup"] and h.english == "Open WhatsApp"
+
+
+def test_all_models_busy_gives_clear_error():
+    from google.genai import errors
+
+    from jarvis.ears import EarsError
+
+    class Models:
+        def generate_content(self, **_):
+            raise errors.ServerError(503, {"error": {"code": 503, "status": "UNAVAILABLE", "message": "busy"}})
+
+    with pytest.raises(EarsError, match="busy right now"):
+        understand(text="افتح", model="a", fallbacks=("b",), client=SimpleNamespace(models=Models()))

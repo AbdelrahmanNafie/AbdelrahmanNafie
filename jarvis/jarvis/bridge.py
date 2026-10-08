@@ -11,14 +11,12 @@ Examples:
 from __future__ import annotations
 
 import argparse
-import io
 import json
 import os
 import shutil
 import subprocess
 import sys
 import time
-import wave
 from pathlib import Path
 
 from . import config
@@ -107,10 +105,12 @@ def describe_claude_failure(code: int, result: dict, stderr: str, stdout: str) -
 
 
 def ask_brain(settings: config.Settings, store: Store, heard: Heard, *, new_session: bool) -> str:
+    """Send the request to Claude. Returns the short spoken-style reply."""
     prompt = BRAIN_PROMPT.format(**heard.model_dump())
     marker = settings.home / ".brain_session"
     cmd = build_claude_command(settings, continue_session=marker.exists() and not new_session)
     store.log("brain", "thinking", "Claude is planning the task…")
+    last_event = store.last_event_id()
     started = time.monotonic()
     # Let tool calls outlive the approval wait, so Claude gets the real answer.
     env = {**os.environ, "MCP_TOOL_TIMEOUT": str(int((settings.approval_wait_s + 30) * 1000))}
@@ -120,27 +120,27 @@ def ask_brain(settings: config.Settings, store: Store, heard: Heard, *, new_sess
         store.log("brain", "failed", str(exc)[:1000])
         raise
     marker.touch()
-    answer = result.get("result", "")
     store.log("brain", "done", f"finished in {time.monotonic() - started:.1f}s",
               cost_usd=result.get("total_cost_usd"), turns=result.get("num_turns"))
-    return answer
+    replies = [e["summary"] for e in store.events(after_id=last_event) if e["kind"] == "reply"]
+    return replies[-1] if replies else result.get("result", "")
 
 
-def record_mic(seconds: float, rate: int = 16_000) -> bytes:
-    try:
-        import sounddevice as sd
-    except ImportError as exc:
-        raise RuntimeError("Microphone support needs: pip install .[mic]") from exc
-    print(f"🎙  Listening for {seconds:g}s…", flush=True)
-    frames = sd.rec(int(seconds * rate), samplerate=rate, channels=1, dtype="int16")
-    sd.wait()
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as wav:
-        wav.setnchannels(1)
-        wav.setsampwidth(2)
-        wav.setframerate(rate)
-        wav.writeframes(frames.tobytes())
-    return buf.getvalue()
+def hear(settings: config.Settings, store: Store, *, text: str | None = None,
+         audio: bytes | None = None, mime: str = "audio/wav") -> Heard | None:
+    """Ears step shared by the bridge and the assistant. None = nothing intelligible."""
+    started = time.monotonic()
+    if text is not None:
+        store.log("ears", "heard", "typed input", chars=len(text))
+    else:
+        store.log("ears", "heard", f"audio input ({len(audio) // 1024} KB)")
+    heard = understand(text=text, audio=audio, mime_type=mime, model=settings.gemini_model,
+                       fallbacks=settings.gemini_fallbacks)
+    took = time.monotonic() - started
+    store.log("ears", "understood", heard.english or "(nothing intelligible)",
+              original=heard.original, language=heard.language, seconds=round(took, 1))
+    print(f"👂 [{heard.language}] {heard.original}\n   → {heard.english}   ⏱ {took:.1f}s")
+    return heard if heard.english else None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -149,7 +149,8 @@ def main(argv: list[str] | None = None) -> int:
     src = parser.add_mutually_exclusive_group()
     src.add_argument("--text", help="typed request (Arabic or English)")
     src.add_argument("--audio", type=Path, help="path to a WAV/MP3/OGG recording")
-    src.add_argument("--mic", type=float, metavar="SECONDS", help="record from the microphone")
+    src.add_argument("--mic", type=float, nargs="?", const=0, metavar="SECONDS",
+                     help="record from the microphone (no number: until you stop talking)")
     parser.add_argument("--to", choices=["claude", "print"], default="claude")
     parser.add_argument("--new-session", action="store_true", help="start a fresh Claude conversation")
     parser.add_argument("--print-desktop-config", action="store_true",
@@ -160,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.print_desktop_config:
         print(json.dumps({"mcpServers": {"jarvis": hands_server_entry(settings)}}, indent=2))
         return 0
-    if not (args.text or args.audio or args.mic):
+    if not (args.text or args.audio or args.mic is not None):
         parser.error("give --text, --audio or --mic")
 
     store = Store(settings.db_path)
@@ -170,36 +171,37 @@ def main(argv: list[str] | None = None) -> int:
         store.log("ears", "failed", str(exc)[:1000])
         print(f"❌ {exc}")
         return 1
-    if heard is None:
-        return 0
-    if args.to == "print":
+    if heard is None or args.to == "print":
         return 0
 
+    started = time.monotonic()
     try:
         answer = ask_brain(settings, store, heard, new_session=args.new_session)
     except BrainError as exc:
         print(f"❌ {exc}\n\nRun `python -m jarvis.doctor` to check each part step by step.")
         return 1
-    print(f"🧠 {answer}")
+    print(f"🧠 {answer}   ⏱ {time.monotonic() - started:.1f}s")
     return 0
 
 
 def _listen(args: argparse.Namespace, settings: config.Settings, store: Store) -> Heard | None:
-    """Ears step. Returns None when nothing intelligible was heard."""
     if args.text:
-        store.log("ears", "heard", "typed input", chars=len(args.text))
-        heard = understand(text=args.text, model=settings.gemini_model)
-    else:
-        audio = args.audio.read_bytes() if args.audio else record_mic(args.mic)
+        return hear(settings, store, text=args.text)
+    if args.audio:
         mime = {".mp3": "audio/mp3", ".ogg": "audio/ogg", ".m4a": "audio/aac"}.get(
-            args.audio.suffix.lower() if args.audio else ".wav", "audio/wav")
-        store.log("ears", "heard", f"audio input ({len(audio) // 1024} KB)")
-        heard = understand(audio=audio, mime_type=mime, model=settings.gemini_model)
+            args.audio.suffix.lower(), "audio/wav")
+        return hear(settings, store, audio=args.audio.read_bytes(), mime=mime)
 
-    store.log("ears", "understood", heard.english or "(nothing intelligible)",
-              original=heard.original, language=heard.language)
-    print(f"👂 [{heard.language}] {heard.original}\n   → {heard.english}")
-    return heard if heard.english else None
+    from . import voice
+
+    if args.mic:
+        print(f"🎙  Listening for up to {args.mic:g}s (stops when you stop talking)…", flush=True)
+    audio = voice.record_until_silence(max_s=args.mic or 30.0,
+                                       on_start=lambda: print("🎙  Speak now…", flush=True))
+    if audio is None:
+        print("🤫 I didn't hear anything.")
+        return None
+    return hear(settings, store, audio=audio)
 
 
 if __name__ == "__main__":

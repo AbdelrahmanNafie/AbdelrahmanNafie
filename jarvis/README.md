@@ -55,8 +55,22 @@ python -m jarvis.doctor                          # checks every part, step by st
 python -m jarvis.dashboard                       # open the printed link
 python -m jarvis.bridge --text "افتح النوت باد"   # typed Arabic
 python -m jarvis.bridge --mic 5                  # speak for 5 seconds
-pytest                                           # 22 tests
+pytest                                           # 38 tests
 ```
+
+### Jarvis mode: "Hey Jarvis" and spoken replies
+
+```powershell
+pip install -e ".[mic,wake]"                          # once
+python -m jarvis.assistant                            # say "Hey Jarvis", then speak
+python -m jarvis.assistant --push-to-talk             # press Enter instead of the wake word
+python -m jarvis.assistant --to print                 # test without Claude (repeats what it understood)
+python -m jarvis.assistant --voice gemini             # natural Gemini voice (default: Windows voice)
+```
+
+- The wake word runs **offline** (openWakeWord, ready-made "Hey Jarvis" model). No audio leaves the laptop until it hears that phrase.
+- Recording stops by itself about 1.2 s after you stop talking, with a 30 s maximum.
+- If a Gemini model is busy (503), Jarvis tries the backup models in `JARVIS_GEMINI_FALLBACKS` instead of waiting.
 
 ### Use the same hands inside Claude Desktop (typing)
 
@@ -74,6 +88,8 @@ Install [Tailscale](https://tailscale.com) on the laptop and the phone. Start th
 | `JARVIS_ALLOWED_DIRS` | *(none)* | Extra folders the hands may access, separated by `;` |
 | `JARVIS_HOME/apps.json` | notepad, calculator, … | Spoken name → executable allowlist |
 | `JARVIS_GEMINI_MODEL` | `gemini-3.8-flash` | Ears model |
+| `JARVIS_GEMINI_FALLBACKS` | `gemini-3.5-flash,gemini-3.5-flash-lite` | Tried in order when the ears model is busy |
+| `JARVIS_VOICE` | `windows` | Spoken replies: `windows`, `gemini` or `off` |
 | `JARVIS_CLAUDE_MODEL` | `sonnet` | Brain model alias (`opus` is stronger but uses your plan's limit faster) |
 | `JARVIS_APPROVAL_WAIT_S` | `45` | How long a dangerous action waits for your click |
 

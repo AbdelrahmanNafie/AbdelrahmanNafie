@@ -37,6 +37,7 @@ _HINTS = {
     403: "This key is not allowed to use the Gemini API. Check the key's project at https://aistudio.google.com/apikey.",
     404: "The model name was not found. Set JARVIS_GEMINI_MODEL to a current model.",
     429: "Too many requests or free quota used up. Wait a minute and try again.",
+    503: "Google's servers are busy right now (not your fault). Try again in a minute.",
 }
 
 
@@ -54,8 +55,23 @@ class Heard(BaseModel):
     english: str = Field(description="Faithful English translation of the request")
 
 
+# Busy/overloaded/timeouts: worth trying the next model instead of waiting.
+_TRY_NEXT_MODEL = {404, 408, 429, 500, 502, 503, 504}
+
+
+def make_client():
+    """Gemini client that fails fast (no silent retries, 20 s timeout) so we can switch models."""
+    from google import genai
+    from google.genai import types
+
+    if not os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
+        raise EarsError("Set GEMINI_API_KEY to use Gemini for Arabic or audio input")
+    return genai.Client(http_options=types.HttpOptions(
+        timeout=20_000, retry_options=types.HttpRetryOptions(attempts=1)))
+
+
 def understand(*, text: str | None = None, audio: bytes | None = None, mime_type: str = "audio/wav",
-               model: str = "gemini-3.8-flash", client=None) -> Heard:
+               model: str = "gemini-3.8-flash", fallbacks: tuple[str, ...] = (), client=None) -> Heard:
     if (text is None) == (audio is None):
         raise ValueError("pass exactly one of text= or audio=")
 
@@ -63,31 +79,28 @@ def understand(*, text: str | None = None, audio: bytes | None = None, mime_type
     if text is not None and not _ARABIC.search(text):
         return Heard(original=text, language="english", english=text.strip())
 
-    from google import genai
-    from google.genai import types
+    from google.genai import errors, types
 
-    if client is None:
-        if not os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
-            raise EarsError("Set GEMINI_API_KEY to use Gemini for Arabic or audio input")
-        client = genai.Client()
-
-    from google.genai import errors
-
+    client = client or make_client()
     payload = [types.Part.from_bytes(data=audio, mime_type=mime_type)] if audio is not None else [text]
-    try:
-        response = client.models.generate_content(
-            model=model,
-            contents=[EARS_PROMPT, *payload],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=Heard,
-                temperature=0,
-            ),
-        )
-    except errors.APIError as exc:
-        hint = _HINTS.get(exc.code, "Gemini returned an error; see the message above.")
-        raise EarsError(f"Gemini error {exc.code} {exc.status}: {exc.message}\n"
-                        f"  key used: {_key_source()}\n  ➜ {hint}") from exc
-    if isinstance(response.parsed, Heard):
-        return response.parsed
-    return Heard.model_validate_json(response.text)
+    config = types.GenerateContentConfig(response_mime_type="application/json", response_schema=Heard,
+                                         temperature=0)
+    models = [model, *(m for m in fallbacks if m and m != model)]
+    last: errors.APIError | None = None
+    for name in models:
+        try:
+            response = client.models.generate_content(model=name, contents=[EARS_PROMPT, *payload], config=config)
+        except errors.APIError as exc:
+            last = exc
+            if exc.code in _TRY_NEXT_MODEL and name != models[-1]:
+                print(f"   (Gemini {name} busy: {exc.code}; trying {models[models.index(name) + 1]})")
+                continue
+            break
+        if isinstance(response.parsed, Heard):
+            return response.parsed
+        return Heard.model_validate_json(response.text)
+
+    assert last is not None
+    hint = _HINTS.get(last.code, "Gemini returned an error; see the message above.")
+    raise EarsError(f"Gemini error {last.code} {last.status}: {last.message}\n"
+                    f"  key used: {_key_source()}\n  ➜ {hint}") from last
