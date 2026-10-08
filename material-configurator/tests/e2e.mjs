@@ -19,7 +19,7 @@ const browser = await chromium.launch({
   executablePath: process.env.CHROMIUM,
   args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"],
 });
-const ctx = await browser.newContext({ viewport: { width: 1600, height: 950 }, acceptDownloads: true });
+const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
@@ -27,54 +27,66 @@ page.on("pageerror", (e) => errors.push(e.message));
 await page.goto(base);
 await page.waitForSelector("[data-group]");
 
-// 1. presets + fidelity on every demo product
+// 1. 3D studio: presets, then an instant high-quality render with embedded codes
+await page.click('[data-product="3d-lounge-chair"]');
+await page.waitForTimeout(5000);
+await page.click(".ideas .pill >> nth=1");
+await page.waitForTimeout(2000);
+await page.click("[data-testid=open-export]");
+await page.click('.opt:has-text("Excel")');
+await page.click("[data-testid=render-3d]");
+await page.waitForSelector("[data-testid=export-preview]", { timeout: 60000 });
+const [dl3d] = await Promise.all([page.waitForEvent("download"), page.click("[data-testid=download-image]")]);
+const out3d = path.join(tmp, dl3d.suggestedFilename());
+await dl3d.saveAs(out3d);
+if (fs.readFileSync(out3d).indexOf("material-configuration") < 0) fail("3D export has no embedded configuration");
+else console.log("3D export ok:", dl3d.suggestedFilename());
+await page.click(".modal header .icon-btn");
+
+// 2. photo products: preset + accuracy check
 for (const id of ["executive-desk-x", "bench-workstation", "lounge-chair-tub", "lounge-chair-leather"]) {
   await page.click(`[data-product="${id}"]`);
-  await page.waitForTimeout(1200);
-  await page.click(".presets .pill >> nth=0");
+  await page.waitForTimeout(2500);
+  await page.click(".ideas .pill >> nth=0");
   await page.waitForTimeout(500);
-  await page.click("text=Fidelity test");
+  await page.click("[data-testid=more]");
+  await page.click("text=Accuracy check");
   await page.waitForSelector("[data-testid=fidelity]");
   await page.waitForTimeout(1500);
   const rows = await page.$$eval("[data-testid=fidelity] tbody tr", (els) => els.map((e) => [...e.children].map((c) => c.textContent.trim()).join(" ")));
-  console.log(`fidelity ${id}:`, rows.join(" | "));
+  console.log(`accuracy ${id}:`, rows.join(" | "));
 }
 
-// 2. upload a photo, auto-detect, configure
-await page.setInputFiles('input[type=file]', path.join(here, "..", "public", "products", "lounge-chair-leather.jpg"));
-await page.waitForSelector("text=3 materials");
-await page.click("text=3 materials");
+// 3. upload a photo: parts are detected automatically
+await page.setInputFiles("input[type=file]", path.join(here, "..", "public", "products", "lounge-chair-leather.jpg"));
+await page.waitForSelector(".parts li", { timeout: 30000 });
 await page.waitForTimeout(1000);
 const kinds = await page.$$eval(".parts li select", (els) => els.map((e) => e.value));
 console.log("auto-detected kinds:", kinds.join(", "));
 if (kinds.length < 2) fail("auto-detect produced fewer than 2 parts");
-await page.click("text=Done → configure");
-await page.waitForTimeout(800);
+await page.click("text=Save and start customising");
+await page.waitForTimeout(1500);
 for (const g of await page.$$eval("[data-group]", (els) => els.map((e) => e.getAttribute("data-group")))) {
   await page.click(`[data-group="${g}"]`);
-  await page.click(".lib-scroll .grid .swatch >> nth=2");
+  await page.click(".library .grid .swatch >> nth=2");
 }
 
-// 3. export PNG with embedded configuration
+// 4. photo export with embedded configuration, then restore it from the PNG
 await page.click("[data-testid=open-export]");
 await page.waitForSelector("[data-testid=export-preview]");
 await page.waitForTimeout(1500);
 const [dl] = await Promise.all([page.waitForEvent("download"), page.click("[data-testid=download-image]")]);
 const out = path.join(tmp, dl.suggestedFilename());
 await dl.saveAs(out);
-const png = fs.readFileSync(out);
-const meta = png.indexOf("material-configuration");
-if (meta < 0) fail("exported PNG has no embedded configuration");
-else console.log("export ok:", dl.suggestedFilename(), `${(png.length / 1024).toFixed(0)} KB, codes embedded`);
+if (fs.readFileSync(out).indexOf("material-configuration") < 0) fail("exported PNG has no embedded configuration");
+else console.log("photo export ok:", dl.suggestedFilename());
 await page.click(".modal header .icon-btn");
-
-// 4. restore the configuration from the exported PNG
-const before = (await page.textContent("[data-testid=config-code]")).replace(/\s+/g, " ");
+const before = (await page.$$eval(".part-tab small", (els) => els.map((e) => e.textContent))).join("|");
 await page.click('[data-product="executive-desk-x"]');
 await page.waitForTimeout(800);
-await page.setInputFiles('input[type=file]', out);
-await page.waitForTimeout(2000);
-const after = (await page.textContent("[data-testid=config-code]")).replace(/\s+/g, " ");
+await page.setInputFiles("input[type=file]", out);
+await page.waitForTimeout(2500);
+const after = (await page.$$eval(".part-tab small", (els) => els.map((e) => e.textContent))).join("|");
 if (before !== after) fail(`restore mismatch: ${before} vs ${after}`);
 else console.log("restore ok:", after);
 

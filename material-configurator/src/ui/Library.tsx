@@ -54,7 +54,7 @@ export function Library({ materials, group, selected, onPick, onHover }: Props) 
           <span className="chip orig-chip">⟲</span>
           <span className="meta">
             <b>Original</b>
-            <small>as photographed</small>
+            <small>current finish</small>
           </span>
         </button>
         {list.map((m) => (

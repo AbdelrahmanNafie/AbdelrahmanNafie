@@ -102,6 +102,8 @@ export interface Part {
   kind: PartKind;
   regions: Region[];
   mapping: Mapping;
+  /** 3D products: mesh or glTF material names this part covers */
+  meshes?: string[];
   tuning?: Partial<RenderTuning>;
 }
 
@@ -122,7 +124,12 @@ export interface ProductSpec {
   sku?: string;
   /** real overall width of the product in cm: sets the physical scale of textures */
   widthCm: number;
+  /** thumbnail / product photo (2D products are customised directly on it) */
   image: string;
+  /** 3D products: glTF/GLB model rendered in the studio instead of re-texturing a photo */
+  model?: string;
+  /** credit line required by the model's licence */
+  credit?: string;
   groups: MaterialGroup[];
   parts: Part[];
   notes?: string;

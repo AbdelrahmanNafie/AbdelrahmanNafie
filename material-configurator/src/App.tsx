@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Mapping, Material, MaterialGroup, Part, PartKind, ProductSpec, RenderTuning, Selection } from "./types";
-import { deleteUserProduct, loadDemoProducts, loadMaterials, loadUserProducts, normaliseUpload, saveUserProduct } from "./data/store";
+import { deleteUserProduct, fileToDataUrl, loadDemoProducts, loadMaterials, loadUserProducts, normaliseUpload, saveUserProduct } from "./data/store";
 import { ProductSession, newPart } from "./engine/session";
 import { DEFAULT_TUNING } from "./engine/prepare";
 import { autoSuggest } from "./engine/segment";
@@ -14,6 +14,10 @@ import { Library } from "./ui/Library";
 import { TuningPanel } from "./ui/Panels";
 import { ExportDialog } from "./ui/ExportDialog";
 import { SetupPanel, type ToolState } from "./ui/SetupPanel";
+import { Stage3D } from "./ui/Stage3D";
+import { Export3DDialog } from "./ui/Export3DDialog";
+import type { Studio3D } from "./engine/studio3d";
+import { ALLOWED_BY_KIND } from "./engine/session";
 
 interface ProductState {
   selection: Selection;
@@ -50,6 +54,8 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [tuneOpen, setTuneOpen] = useState(false);
+  const [holdOriginal, setHoldOriginal] = useState(false);
+  const studioRef = useRef<Studio3D | null>(null);
   // setup mode
   const [draft, setDraft] = useState<ProductSpec | null>(null);
   const [activePart, setActivePart] = useState(0);
@@ -95,8 +101,15 @@ export default function App() {
   useEffect(() => {
     if (!spec) return;
     let cancelled = false;
-    setLoading(true);
     setFidelity(null);
+    if (spec.model) {
+      setSession(null);
+      setMode("configure");
+      setActiveGroup(spec.groups[0]?.id ?? null);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     ProductSession.open(spec, states[spec.id]?.tuning)
       .then((s) => {
         if (cancelled) return;
@@ -331,6 +344,14 @@ export default function App() {
       const txt = await readPngText(f, PNG_KEYWORD);
       if (txt) return restoreFromFile(f);
     }
+    if (/\.(glb|gltf)$/i.test(f.name)) {
+      const model = await fileToDataUrl(f);
+      const id = `user3d-${Date.now().toString(36)}`;
+      const p: ProductSpec = { id, name: f.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " "), category: "3D model", widthCm: 100, image: "", model, groups: [], parts: [], origin: "user" };
+      setProducts((ps) => [...ps, p]);
+      setActiveId(id);
+      return;
+    }
     const image = await normaliseUpload(f);
     const id = `user-${Date.now().toString(36)}`;
     const p: ProductSpec = {
@@ -363,6 +384,27 @@ export default function App() {
     }
   };
 
+  /** An uploaded 3D model: one customisable part per material slot, type guessed from its name. */
+  const onSlots = (slots: { mesh: string; material: string }[], widthCm: number) => {
+    if (!spec) return;
+    const guess = (n: string): PartKind =>
+      /fabric|velvet|cloth|textile|uphol|cushion|seat|boucle/i.test(n) ? "fabric" : /leather/i.test(n) ? "leather" : /wood|oak|walnut|veneer|top/i.test(n) ? "wood" : /glass/i.test(n) ? "glass" : /marble|stone/i.test(n) ? "stone" : /metal|steel|chrome|leg|frame|base|feet|foot/i.test(n) ? "metal" : "other";
+    const names = [...new Set(slots.map((x) => x.material || x.mesh))];
+    const parts: Part[] = [];
+    const groups: MaterialGroup[] = [];
+    names.forEach((n, i) => {
+      const kind = guess(n);
+      const gid = `g${i}`;
+      const label = n.replace(/[_-]+/g, " ").trim() || `Part ${i + 1}`;
+      groups.push({ id: gid, name: label, allowed: ALLOWED_BY_KIND[kind] });
+      parts.push({ id: `p${i}`, name: label, groupId: gid, kind, regions: [], mapping: { mode: "planar", angle: 0, scale: 1 }, meshes: [n] });
+    });
+    const next = { ...spec, parts, groups, widthCm };
+    setProducts((ps) => ps.map((x) => (x.id === spec.id ? next : x)));
+    setActiveGroup(groups[0]?.id ?? null);
+    saveUserProduct(next).catch(() => undefined);
+  };
+
   // ------------------------------------------------------------ render
   if (error) return <div className="fatal">Could not start: {error}</div>;
   const group = spec?.groups.find((g) => g.id === activeGroup) ?? null;
@@ -388,15 +430,16 @@ export default function App() {
         <nav className="products" aria-label="Products">
           {products.map((p) => (
             <button key={p.id} className={`prod ${p.id === activeId ? "on" : ""}`} onClick={() => mode === "configure" && setActiveId(p.id)} disabled={mode === "setup" && p.id !== activeId} title={p.name} data-product={p.id}>
-              <img src={p.image} alt="" />
+              {p.image ? <img src={p.image} alt="" /> : <span className="thumb3d">3D</span>}
               <span>{p.name}</span>
+              {p.model && <em className="tag3d">3D</em>}
             </button>
           ))}
           <button className="prod add" onClick={() => uploadRef.current?.click()} disabled={mode === "setup"} title="Add your own product photo (white background works best)">
             <span className="plus">+</span>
             <span>Add product</span>
           </button>
-          <input ref={uploadRef} type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])} />
+          <input ref={uploadRef} type="file" accept="image/*,.glb,.gltf" hidden onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])} />
         </nav>
       </header>
 
@@ -435,7 +478,7 @@ export default function App() {
             <div className="viewbar">
               <div className="prod-title">
                 <h1>{spec?.name}</h1>
-                <small className="muted">Tap a part of the product, then pick a finish.</small>
+                <small className="muted">{spec?.model ? "3D model · drag to rotate, click a part, then pick a finish." : "Tap a part of the product, then pick a finish."}</small>
               </div>
               <div className="more">
                 <button className="btn ghost" onClick={() => setMoreOpen((o) => !o)} aria-expanded={moreOpen} data-testid="more">
@@ -443,17 +486,33 @@ export default function App() {
                 </button>
                 {moreOpen && (
                   <div className="menu" onClick={() => setMoreOpen(false)}>
-                    <button onClick={() => setView(view === "side" ? "result" : "side")}>{view === "side" ? "Single view" : "Before / after side by side"}</button>
-                    <button onClick={() => setZoom(zoom === 1 ? 2 : 1)}>{zoom === 1 ? "Zoom in 2×" : "Fit to screen"}</button>
-                    <button onClick={() => setTuneOpen((o) => !o)}>{tuneOpen ? "Hide fine-tuning" : "Fine-tune the selected part"}</button>
-                    <button onClick={runFidelity}>Accuracy check</button>
-                    <button onClick={() => enterSetup()}>Edit parts of this product</button>
+                    {spec?.model ? (
+                      <button onClick={() => studioRef.current && spec.model && studioRef.current.load(spec.model).then(() => studioRef.current?.apply(spec.parts.map((x) => ({ id: x.id, name: x.name, groupId: x.groupId, meshes: x.meshes ?? [] })), st.selection, matMap, spec.groups))}>Reset camera</button>
+                    ) : (
+                      <>
+                        <button onClick={() => setView(view === "side" ? "result" : "side")}>{view === "side" ? "Single view" : "Before / after side by side"}</button>
+                        <button onClick={() => setZoom(zoom === 1 ? 2 : 1)}>{zoom === 1 ? "Zoom in 2×" : "Fit to screen"}</button>
+                        <button onClick={() => setTuneOpen((o) => !o)}>{tuneOpen ? "Hide fine-tuning" : "Fine-tune the selected part"}</button>
+                        <button onClick={runFidelity}>Accuracy check</button>
+                        <button onClick={() => enterSetup()}>Edit parts of this product</button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
             </div>
           )}
-          {session && (
+          {spec?.model && (
+            <Stage3D
+              spec={spec}
+              selection={holdOriginal ? {} : effectiveSelection}
+              materials={matMap}
+              onPickGroup={setActiveGroup}
+              onSlots={onSlots}
+              studioRef={studioRef}
+            />
+          )}
+          {session && !spec?.model && (
             <Stage
               session={session}
               version={version}
@@ -526,15 +585,15 @@ export default function App() {
               </table>
             </div>
           )}
-          {mode === "configure" && session && (
+          {mode === "configure" && (session || spec?.model) && (
             <footer className="actionbar">
               <button
                 className="btn"
-                onPointerDown={() => setView("original")}
-                onPointerUp={() => setView("result")}
-                onPointerLeave={() => view === "original" && setView("result")}
-                onKeyDown={(e) => e.key === " " && setView("original")}
-                onKeyUp={() => setView("result")}
+                onPointerDown={() => (spec?.model ? setHoldOriginal(true) : setView("original"))}
+                onPointerUp={() => (setHoldOriginal(false), setView("result"))}
+                onPointerLeave={() => (setHoldOriginal(false), view === "original" && setView("result"))}
+                onKeyDown={(e) => e.key === " " && (spec?.model ? setHoldOriginal(true) : setView("original"))}
+                onKeyUp={() => (setHoldOriginal(false), setView("result"))}
                 disabled={!changed}
                 title="Press and hold to see the original photo"
               >
@@ -545,7 +604,7 @@ export default function App() {
                 disabled={!changed}
                 onClick={() => {
                   patchState(() => EMPTY);
-                  session.spec.parts.forEach((p, i) => session.setSmoothing(i, p.tuning?.smoothing ?? DEFAULT_TUNING[p.kind].smoothing));
+                  session?.spec.parts.forEach((p, i) => session.setSmoothing(i, p.tuning?.smoothing ?? DEFAULT_TUNING[p.kind].smoothing));
                   setVersion((v) => v + 1);
                   setFidelity(null);
                   setView("result");
@@ -620,7 +679,10 @@ export default function App() {
         )}
       </main>
 
-      {exportOpen && spec && record && session && (
+      {exportOpen && spec?.model && record && studioRef.current && (
+        <Export3DDialog spec={spec} record={record} studio={studioRef.current} onClose={() => setExportOpen(false)} />
+      )}
+      {exportOpen && !spec?.model && spec && record && session && (
         <ExportDialog spec={spec} record={record} srcSize={[session.w, session.h]} productBox={session.prepared.productBox} render={(s) => renderAt(s)} onClose={() => setExportOpen(false)} />
       )}
       {toast && <div className="toast">{toast}</div>}

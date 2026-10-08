@@ -1,5 +1,7 @@
 {
  "products": [
+  "products/3d-lounge-chair.json",
+  "products/3d-velvet-sofa.json",
   "products/executive-desk-x.json",
   "products/bench-workstation.json",
   "products/lounge-chair-tub.json",

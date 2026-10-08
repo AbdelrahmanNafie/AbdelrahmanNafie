@@ -13,6 +13,27 @@ no GPU server, no AI API calls, no per-image cost. Deployable as-is to Cloudflar
 
 ---
 
+
+## Two rendering modes — and which one to use for clients
+
+| | **3D Studio** (recommended for client images) | **Photo mode** |
+|---|---|---|
+| Input | the product's 3D model (GLB/glTF — the photos you supplied are themselves CG renders, so these models already exist) | one studio photo |
+| Realism | real geometry, physically based materials, path-traced studio render: true soft shadows, reflections, fabric sheen, leather gloss | re-lights swatches with the photo's own lighting; convincing for colour/finish changes, limited by photo resolution |
+| Material accuracy | the Mobica swatch scans become PBR materials (colour + generated relief + gloss) at their real size | same swatches, applied in 2D |
+| Extra | any camera angle, unlimited combinations, no per-image cost | works today with only photos |
+
+**3D Studio**: open *Lounge Chair (3D)* or *Sofa (3D)*, drag to rotate, click a part, pick a finish. *Download image →
+Studio render* path-traces the image in the browser (three.js + three-gpu-pathtracer), the same light transport a desktop
+renderer uses. Upload your own `.glb` with **Add product**: every material slot in the model becomes a customisable part.
+Demo models: “Sheen Chair” © 2020 Wayfair, LLC (CC0) and “Glam Velvet Sofa” © 2021 Wayfair, LLC (CC BY 4.0), from the
+Khronos glTF Sample Assets.
+
+**Option not built (evaluated)**: generative AI editing (e.g. FLUX.2 [klein] 4B, Apache 2.0, available on Cloudflare Workers AI;
+ZeST material transfer with SDXL + IP-Adapter + depth ControlNet). Photo-real, but it re-draws the image: stitching, proportions
+and the exact swatch colour are not guaranteed, results vary per run, and it costs GPU time per image. Suitable as an optional
+“creative visual” step, not for quotation-accurate images.
+
 ## Run it
 
 ```bash
