@@ -1,0 +1,112 @@
+{
+ "id": "3d-velvet-sofa",
+ "name": "Sofa (3D)",
+ "category": "3D",
+ "sku": "DEMO-3D-SF",
+ "widthCm": 200,
+ "image": "products/3d-velvet-sofa.jpg",
+ "model": "models/GlamVelvetSofa.glb",
+ "origin": "demo",
+ "credit": "3D model: \u201cGlam Velvet Sofa\u201d \u00a9 2021 Wayfair, LLC \u2014 CC BY 4.0 (Khronos glTF Sample Assets).",
+ "groups": [
+  {
+   "id": "upholstery",
+   "name": "Upholstery",
+   "allowed": [
+    "fabric",
+    "leather-natural",
+    "leather-artificial"
+   ]
+  },
+  {
+   "id": "legs",
+   "name": "Legs",
+   "allowed": [
+    "metal",
+    "wood",
+    "concept"
+   ]
+  },
+  {
+   "id": "feet",
+   "name": "Feet",
+   "allowed": [
+    "metal",
+    "concept"
+   ]
+  }
+ ],
+ "parts": [
+  {
+   "id": "fabric",
+   "name": "Upholstery",
+   "groupId": "upholstery",
+   "kind": "fabric",
+   "regions": [],
+   "mapping": {
+    "mode": "planar",
+    "angle": 0,
+    "scale": 1
+   },
+   "meshes": [
+    "GlamVelvetSofa_fabric"
+   ]
+  },
+  {
+   "id": "legs",
+   "name": "Legs",
+   "groupId": "legs",
+   "kind": "metal",
+   "regions": [],
+   "mapping": {
+    "mode": "planar",
+    "angle": 0,
+    "scale": 1
+   },
+   "meshes": [
+    "GlamVelvetSofa_legs"
+   ]
+  },
+  {
+   "id": "feet",
+   "name": "Feet",
+   "groupId": "feet",
+   "kind": "metal",
+   "regions": [],
+   "mapping": {
+    "mode": "planar",
+    "angle": 0,
+    "scale": 1
+   },
+   "meshes": [
+    "GlamVelvetSofa_feet"
+   ]
+  }
+ ],
+ "presets": [
+  {
+   "name": "Grey & black",
+   "selection": {
+    "upholstery": "fabric-602",
+    "legs": "metal-9005",
+    "feet": "metal-9005"
+   }
+  },
+  {
+   "name": "Cognac leather",
+   "selection": {
+    "upholstery": "leather-natural-503",
+    "legs": "brushed-nickel",
+    "feet": "brushed-nickel"
+   }
+  },
+  {
+   "name": "Mustard & oak",
+   "selection": {
+    "upholstery": "fabric-tx769-0016",
+    "legs": "wood-6801",
+    "feet": "metal-9006"
+   }
+  }
+ ]
+}
