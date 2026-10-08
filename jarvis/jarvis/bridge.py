@@ -67,6 +67,41 @@ def build_claude_command(settings: config.Settings, *, continue_session: bool) -
     return cmd
 
 
+class BrainError(RuntimeError):
+    """Claude Code ran but reported a problem; the message is meant for humans."""
+
+
+def run_claude(cmd: list[str], prompt: str, *, cwd: Path, env: dict[str, str] | None = None) -> dict:
+    """Run the Claude Code CLI and return its JSON result, raising BrainError with the real reason."""
+    proc = subprocess.run(cmd, input=prompt, cwd=cwd, env=env, capture_output=True,
+                          text=True, encoding="utf-8", errors="replace")
+    try:
+        result = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        result = {}
+    if proc.returncode == 0 and result and not result.get("is_error"):
+        return result
+    raise BrainError(describe_claude_failure(proc.returncode, result, proc.stderr, proc.stdout))
+
+
+def describe_claude_failure(code: int, result: dict, stderr: str, stdout: str) -> str:
+    """Pull the human-readable reason out of a failed run (usage numbers are noise here)."""
+    lines = [f"Claude Code exited with code {code}."]
+    if result.get("subtype"):
+        lines.append(f"  type:    {result['subtype']}")
+    if result.get("result"):
+        lines.append(f"  message: {str(result['result']).strip()[:800]}")
+    for err in result.get("errors") or []:
+        lines.append(f"  error:   {str(err)[:400]}")
+    for denial in result.get("permission_denials") or []:
+        lines.append(f"  blocked tool: {denial.get('tool_name', denial)}")
+    if stderr.strip():
+        lines.append("  stderr:  " + stderr.strip()[-800:])
+    if not result and stdout.strip():
+        lines.append("  output:  " + stdout.strip()[-800:])
+    return "\n".join(lines)
+
+
 def ask_brain(settings: config.Settings, store: Store, heard: Heard, *, new_session: bool) -> str:
     prompt = BRAIN_PROMPT.format(**heard.model_dump())
     marker = settings.home / ".brain_session"
@@ -75,13 +110,12 @@ def ask_brain(settings: config.Settings, store: Store, heard: Heard, *, new_sess
     started = time.monotonic()
     # Let tool calls outlive the approval wait, so Claude gets the real answer.
     env = {**os.environ, "MCP_TOOL_TIMEOUT": str(int((settings.approval_wait_s + 30) * 1000))}
-    proc = subprocess.run(cmd, input=prompt, cwd=settings.home, env=env, capture_output=True,
-                          text=True, encoding="utf-8")
-    if proc.returncode != 0:
-        store.log("brain", "failed", (proc.stderr or proc.stdout).strip()[:500])
-        raise RuntimeError(f"claude exited with {proc.returncode}: {(proc.stderr or proc.stdout)[:500]}")
+    try:
+        result = run_claude(cmd, prompt, cwd=settings.home, env=env)
+    except BrainError as exc:
+        store.log("brain", "failed", str(exc)[:1000])
+        raise
     marker.touch()
-    result = json.loads(proc.stdout)
     answer = result.get("result", "")
     store.log("brain", "done", f"finished in {time.monotonic() - started:.1f}s",
               cost_usd=result.get("total_cost_usd"), turns=result.get("num_turns"))
@@ -142,7 +176,11 @@ def main(argv: list[str] | None = None) -> int:
     if not heard.english or args.to == "print":
         return 0
 
-    answer = ask_brain(settings, store, heard, new_session=args.new_session)
+    try:
+        answer = ask_brain(settings, store, heard, new_session=args.new_session)
+    except BrainError as exc:
+        print(f"❌ {exc}\n\nRun `python -m jarvis.doctor` to check each part step by step.")
+        return 1
     print(f"🧠 {answer}")
     return 0
 

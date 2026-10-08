@@ -51,10 +51,11 @@ claude          # first run opens the browser login; then exit
 setx GEMINI_API_KEY "your-key"     # open a new terminal afterwards
 
 # 4. Run
+python -m jarvis.doctor                          # checks every part, step by step
 python -m jarvis.dashboard                       # open the printed link
 python -m jarvis.bridge --text "افتح النوت باد"   # typed Arabic
 python -m jarvis.bridge --mic 5                  # speak for 5 seconds
-pytest                                           # 20 tests
+pytest                                           # 22 tests
 ```
 
 ### Use the same hands inside Claude Desktop (typing)
