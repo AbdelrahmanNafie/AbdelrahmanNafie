@@ -1,0 +1,229 @@
+{
+ "id": "lounge-chair-leather",
+ "name": "Club Chair, Leather Shell",
+ "category": "Lounge seating",
+ "sku": "DEMO-LC-02",
+ "widthCm": 80,
+ "image": "products/lounge-chair-leather.jpg",
+ "groups": [
+  {
+   "id": "shell",
+   "name": "Outer shell",
+   "allowed": [
+    "leather-natural",
+    "leather-artificial",
+    "fabric"
+   ]
+  },
+  {
+   "id": "cushions",
+   "name": "Seat & back cushions",
+   "allowed": [
+    "fabric",
+    "leather-natural",
+    "leather-artificial"
+   ]
+  },
+  {
+   "id": "base",
+   "name": "Metal base",
+   "allowed": [
+    "metal",
+    "concept"
+   ]
+  }
+ ],
+ "parts": [
+  {
+   "id": "cushions",
+   "name": "Cushions",
+   "groupId": "cushions",
+   "kind": "fabric",
+   "regions": [
+    {
+     "type": "poly",
+     "points": [
+      [
+       140,
+       180
+      ],
+      [
+       340,
+       180
+      ],
+      [
+       340,
+       330
+      ],
+      [
+       140,
+       330
+      ]
+     ]
+    }
+   ],
+   "mapping": {
+    "mode": "planar",
+    "angle": 0,
+    "scale": 1
+   }
+  },
+  {
+   "id": "base",
+   "name": "Base ring & legs",
+   "groupId": "base",
+   "kind": "metal",
+   "regions": [
+    {
+     "type": "poly",
+     "points": [
+      [
+       145,
+       312
+      ],
+      [
+       340,
+       305
+      ],
+      [
+       340,
+       372
+      ],
+      [
+       145,
+       372
+      ]
+     ],
+     "maxL": 45
+    }
+   ],
+   "mapping": {
+    "mode": "planar",
+    "angle": 0,
+    "scale": 1
+   }
+  },
+  {
+   "id": "shell",
+   "name": "Shell",
+   "groupId": "shell",
+   "kind": "leather",
+   "regions": [
+    {
+     "type": "poly",
+     "points": [
+      [
+       148,
+       190
+      ],
+      [
+       162,
+       189
+      ],
+      [
+       175,
+       220
+      ],
+      [
+       186,
+       262
+      ],
+      [
+       188,
+       320
+      ],
+      [
+       186,
+       338
+      ],
+      [
+       160,
+       336
+      ],
+      [
+       152,
+       334
+      ],
+      [
+       144,
+       310
+      ],
+      [
+       144,
+       215
+      ]
+     ]
+    },
+    {
+     "type": "poly",
+     "points": [
+      [
+       264,
+       206
+      ],
+      [
+       290,
+       208
+      ],
+      [
+       316,
+       216
+      ],
+      [
+       326,
+       250
+      ],
+      [
+       327,
+       267
+      ],
+      [
+       300,
+       258
+      ],
+      [
+       271,
+       253
+      ],
+      [
+       268,
+       230
+      ]
+     ]
+    }
+   ],
+   "mapping": {
+    "mode": "planar",
+    "angle": 0,
+    "scale": 1
+   }
+  }
+ ],
+ "presets": [
+  {
+   "name": "Black & charcoal",
+   "selection": {
+    "shell": "leather-natural-512",
+    "cushions": "fabric-koya-12",
+    "base": "metal-9005"
+   }
+  },
+  {
+   "name": "Olive lounge",
+   "selection": {
+    "shell": "leather-natural-507",
+    "cushions": "fabric-505",
+    "base": "brushed-nickel"
+   }
+  },
+  {
+   "name": "Petrol club",
+   "selection": {
+    "shell": "leather-artificial-mb013",
+    "cushions": "fabric-tx769-0090",
+    "base": "chrome"
+   }
+  }
+ ],
+ "origin": "demo"
+}

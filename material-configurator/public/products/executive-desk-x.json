@@ -1,0 +1,348 @@
+{
+ "id": "executive-desk-x",
+ "name": "Executive L-Desk, X-Frame",
+ "category": "Desks",
+ "sku": "DEMO-DSK-180",
+ "widthCm": 180,
+ "image": "products/executive-desk-x.jpg",
+ "notes": "Planar surfaces use perspective mapping so wood grain follows the desktop plane.",
+ "groups": [
+  {
+   "id": "desktop",
+   "name": "Desktop",
+   "allowed": [
+    "wood",
+    "concept"
+   ]
+  },
+  {
+   "id": "carcass",
+   "name": "Modesty panel & pedestal",
+   "allowed": [
+    "wood"
+   ]
+  },
+  {
+   "id": "frame",
+   "name": "Steel frame",
+   "allowed": [
+    "metal",
+    "concept"
+   ]
+  }
+ ],
+ "parts": [
+  {
+   "id": "pedestal",
+   "name": "Pedestal",
+   "groupId": "carcass",
+   "kind": "wood",
+   "regions": [
+    {
+     "type": "poly",
+     "points": [
+      [
+       343,
+       58
+      ],
+      [
+       424,
+       48
+      ],
+      [
+       421,
+       165
+      ],
+      [
+       398,
+       169
+      ],
+      [
+       360,
+       178
+      ],
+      [
+       343,
+       176
+      ],
+      [
+       284,
+       157
+      ],
+      [
+       300,
+       150
+      ],
+      [
+       343,
+       138
+      ]
+     ],
+     "clip": "strict"
+    }
+   ],
+   "mapping": {
+    "mode": "perspective",
+    "quad": [
+     [
+      344,
+      62
+     ],
+     [
+      419,
+      52
+     ],
+     [
+      418,
+      165
+     ],
+     [
+      358,
+      177
+     ]
+    ],
+    "sizeCm": [
+     60,
+     62
+    ],
+    "angle": 90,
+    "scale": 1
+   }
+  },
+  {
+   "id": "panel",
+   "name": "Modesty panel",
+   "groupId": "carcass",
+   "kind": "wood",
+   "regions": [
+    {
+     "type": "poly",
+     "points": [
+      [
+       147,
+       90
+      ],
+      [
+       344,
+       68
+      ],
+      [
+       344,
+       140
+      ],
+      [
+       282,
+       152
+      ],
+      [
+       150,
+       182
+      ]
+     ],
+     "clip": "strict"
+    }
+   ],
+   "mapping": {
+    "mode": "perspective",
+    "quad": [
+     [
+      152,
+      87
+     ],
+     [
+      343,
+      70
+     ],
+     [
+      343,
+      140
+     ],
+     [
+      153,
+      177
+     ]
+    ],
+    "sizeCm": [
+     150,
+     55
+    ],
+    "angle": 0,
+    "scale": 1
+   }
+  },
+  {
+   "id": "top",
+   "name": "Desktop",
+   "groupId": "desktop",
+   "kind": "wood",
+   "regions": [
+    {
+     "type": "poly",
+     "points": [
+      [
+       55,
+       55
+      ],
+      [
+       190,
+       36
+      ],
+      [
+       192,
+       29
+      ],
+      [
+       322,
+       27
+      ],
+      [
+       426,
+       44
+      ],
+      [
+       426,
+       52
+      ],
+      [
+       344,
+       59
+      ],
+      [
+       344,
+       66
+      ],
+      [
+       147,
+       89
+      ],
+      [
+       60,
+       65
+      ]
+     ],
+     "clip": "flood"
+    }
+   ],
+   "mapping": {
+    "mode": "perspective",
+    "quad": [
+     [
+      62,
+      59
+     ],
+     [
+      318,
+      24
+     ],
+     [
+      419,
+      50
+     ],
+     [
+      147,
+      88
+     ]
+    ],
+    "sizeCm": [
+     180,
+     80
+    ],
+    "angle": 0,
+    "scale": 1
+   }
+  },
+  {
+   "id": "frame",
+   "name": "X-frame & bracket",
+   "groupId": "frame",
+   "kind": "metal",
+   "regions": [
+    {
+     "type": "poly",
+     "points": [
+      [
+       52,
+       64
+      ],
+      [
+       148,
+       90
+      ],
+      [
+       152,
+       95
+      ],
+      [
+       152,
+       255
+      ],
+      [
+       40,
+       255
+      ],
+      [
+       40,
+       64
+      ]
+     ],
+     "clip": "strict"
+    },
+    {
+     "type": "poly",
+     "points": [
+      [
+       349,
+       55
+      ],
+      [
+       367,
+       55
+      ],
+      [
+       367,
+       68
+      ],
+      [
+       349,
+       68
+      ]
+     ],
+     "clip": "strict",
+     "maxL": 40
+    }
+   ],
+   "mapping": {
+    "mode": "planar",
+    "angle": 90,
+    "scale": 1
+   }
+  }
+ ],
+ "presets": [
+  {
+   "name": "Nordic oak",
+   "selection": {
+    "desktop": "wood-6801",
+    "carcass": "wood-6801",
+    "frame": "metal-9216"
+   }
+  },
+  {
+   "name": "Graphite walnut",
+   "selection": {
+    "desktop": "wood-253",
+    "carcass": "wood-8231",
+    "frame": "metal-9005"
+   }
+  },
+  {
+   "name": "Marble statement",
+   "selection": {
+    "desktop": "marble-nero",
+    "carcass": "wood-8231",
+    "frame": "brushed-nickel"
+   }
+  }
+ ],
+ "origin": "demo"
+}

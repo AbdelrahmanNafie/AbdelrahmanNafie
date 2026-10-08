@@ -1,0 +1,320 @@
+{
+ "id": "lounge-chair-tub",
+ "name": "Tub Lounge Chair",
+ "category": "Lounge seating",
+ "sku": "DEMO-LC-01",
+ "widthCm": 78,
+ "image": "products/lounge-chair-tub.jpg",
+ "notes": "Original shell is a high-contrast houndstooth that is not in the catalog; stronger pattern removal is used.",
+ "groups": [
+  {
+   "id": "shell",
+   "name": "Shell upholstery",
+   "allowed": [
+    "fabric",
+    "leather-natural",
+    "leather-artificial"
+   ]
+  },
+  {
+   "id": "seat",
+   "name": "Seat cushion",
+   "allowed": [
+    "fabric",
+    "leather-natural",
+    "leather-artificial"
+   ]
+  },
+  {
+   "id": "frame",
+   "name": "Tubular frame",
+   "allowed": [
+    "metal",
+    "concept"
+   ]
+  }
+ ],
+ "parts": [
+  {
+   "id": "shell",
+   "name": "Shell",
+   "groupId": "shell",
+   "kind": "fabric",
+   "regions": [
+    {
+     "type": "poly",
+     "points": [
+      [
+       145,
+       175
+      ],
+      [
+       170,
+       160
+      ],
+      [
+       250,
+       159
+      ],
+      [
+       320,
+       162
+      ],
+      [
+       338,
+       185
+      ],
+      [
+       340,
+       275
+      ],
+      [
+       318,
+       272
+      ],
+      [
+       165,
+       272
+      ],
+      [
+       143,
+       270
+      ]
+     ],
+     "clip": "flood"
+    }
+   ],
+   "mapping": {
+    "mode": "planar",
+    "angle": 0,
+    "scale": 1
+   },
+   "tuning": {
+    "smoothing": 2.2,
+    "detail": 0.0,
+    "highlights": 0.3
+   }
+  },
+  {
+   "id": "seat",
+   "name": "Seat cushion",
+   "groupId": "seat",
+   "kind": "fabric",
+   "regions": [
+    {
+     "type": "poly",
+     "points": [
+      [
+       170,
+       239
+      ],
+      [
+       312,
+       239
+      ],
+      [
+       318,
+       250
+      ],
+      [
+       318,
+       268
+      ],
+      [
+       310,
+       284
+      ],
+      [
+       250,
+       289
+      ],
+      [
+       190,
+       288
+      ],
+      [
+       165,
+       280
+      ],
+      [
+       163,
+       255
+      ]
+     ],
+     "clip": "flood"
+    }
+   ],
+   "mapping": {
+    "mode": "planar",
+    "angle": 0,
+    "scale": 1
+   }
+  },
+  {
+   "id": "frame",
+   "name": "Frame",
+   "groupId": "frame",
+   "kind": "metal",
+   "regions": [
+    {
+     "type": "poly",
+     "points": [
+      [
+       159,
+       196
+      ],
+      [
+       168,
+       196
+      ],
+      [
+       159,
+       342
+      ],
+      [
+       149,
+       342
+      ]
+     ]
+    },
+    {
+     "type": "poly",
+     "points": [
+      [
+       312,
+       196
+      ],
+      [
+       321,
+       196
+      ],
+      [
+       332,
+       342
+      ],
+      [
+       322,
+       342
+      ]
+     ]
+    },
+    {
+     "type": "poly",
+     "points": [
+      [
+       168,
+       286
+      ],
+      [
+       178,
+       286
+      ],
+      [
+       178,
+       305
+      ],
+      [
+       168,
+       305
+      ]
+     ]
+    },
+    {
+     "type": "poly",
+     "points": [
+      [
+       304,
+       286
+      ],
+      [
+       314,
+       286
+      ],
+      [
+       314,
+       305
+      ],
+      [
+       304,
+       305
+      ]
+     ]
+    },
+    {
+     "type": "poly",
+     "points": [
+      [
+       160,
+       277
+      ],
+      [
+       195,
+       283
+      ],
+      [
+       195,
+       291
+      ],
+      [
+       160,
+       286
+      ]
+     ]
+    },
+    {
+     "type": "poly",
+     "points": [
+      [
+       288,
+       283
+      ],
+      [
+       318,
+       276
+      ],
+      [
+       318,
+       287
+      ],
+      [
+       288,
+       291
+      ]
+     ]
+    }
+   ],
+   "mapping": {
+    "mode": "planar",
+    "angle": 90,
+    "scale": 1
+   }
+  }
+ ],
+ "presets": [
+  {
+   "name": "Tonal blue",
+   "selection": {
+    "shell": "fabric-koya-51",
+    "seat": "fabric-koya-42",
+    "frame": "metal-9005"
+   }
+  },
+  {
+   "name": "Camel & cream",
+   "selection": {
+    "shell": "leather-artificial-2001",
+    "seat": "leather-artificial-k401",
+    "frame": "metal-9006"
+   }
+  },
+  {
+   "name": "Mustard pop",
+   "selection": {
+    "shell": "fabric-tx769-0016",
+    "seat": "fabric-601",
+    "frame": "metal-860"
+   }
+  }
+ ],
+ "origin": "demo"
+}

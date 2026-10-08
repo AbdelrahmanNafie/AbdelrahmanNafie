@@ -1,0 +1,476 @@
+{
+ "id": "bench-workstation",
+ "name": "Bench Workstation, 4 Seats",
+ "category": "Workstations",
+ "sku": "DEMO-WS-4P",
+ "widthCm": 240,
+ "image": "products/bench-workstation.jpg",
+ "groups": [
+  {
+   "id": "worktops",
+   "name": "Worktops",
+   "allowed": [
+    "wood",
+    "concept"
+   ]
+  },
+  {
+   "id": "screens",
+   "name": "Screen fabric",
+   "allowed": [
+    "fabric"
+   ]
+  },
+  {
+   "id": "legs",
+   "name": "Legs",
+   "allowed": [
+    "wood",
+    "metal"
+   ]
+  },
+  {
+   "id": "metal",
+   "name": "Screen frame & cable spine",
+   "allowed": [
+    "metal",
+    "concept"
+   ]
+  }
+ ],
+ "parts": [
+  {
+   "id": "tops",
+   "name": "Worktops",
+   "groupId": "worktops",
+   "kind": "wood",
+   "regions": [
+    {
+     "type": "poly",
+     "points": [
+      [
+       55,
+       252
+      ],
+      [
+       110,
+       245
+      ],
+      [
+       352,
+       238
+      ],
+      [
+       422,
+       246
+      ],
+      [
+       420,
+       256
+      ],
+      [
+       306,
+       268
+      ],
+      [
+       270,
+       275
+      ],
+      [
+       153,
+       292
+      ],
+      [
+       58,
+       262
+      ]
+     ]
+    }
+   ],
+   "mapping": {
+    "mode": "perspective",
+    "quad": [
+     [
+      57,
+      254
+     ],
+     [
+      350,
+      236
+     ],
+     [
+      421,
+      250
+     ],
+     [
+      153,
+      290
+     ]
+    ],
+    "sizeCm": [
+     240,
+     140
+    ],
+    "angle": 0,
+    "scale": 1
+   },
+   "tuning": {
+    "smoothing": 0.4,
+    "detail": 0.25
+   }
+  },
+  {
+   "id": "legs",
+   "name": "Tapered legs",
+   "groupId": "legs",
+   "kind": "wood",
+   "regions": [
+    {
+     "type": "poly",
+     "points": [
+      [
+       74,
+       264
+      ],
+      [
+       87,
+       264
+      ],
+      [
+       70,
+       366
+      ],
+      [
+       61,
+       366
+      ]
+     ],
+     "minL": 45
+    },
+    {
+     "type": "poly",
+     "points": [
+      [
+       140,
+       282
+      ],
+      [
+       155,
+       282
+      ],
+      [
+       147,
+       423
+      ],
+      [
+       136,
+       423
+      ]
+     ],
+     "minL": 45
+    },
+    {
+     "type": "poly",
+     "points": [
+      [
+       304,
+       262
+      ],
+      [
+       315,
+       262
+      ],
+      [
+       314,
+       320
+      ],
+      [
+       305,
+       320
+      ]
+     ],
+     "minL": 45
+    },
+    {
+     "type": "poly",
+     "points": [
+      [
+       391,
+       254
+      ],
+      [
+       405,
+       254
+      ],
+      [
+       419,
+       350
+      ],
+      [
+       409,
+       350
+      ]
+     ],
+     "minL": 45
+    }
+   ],
+   "mapping": {
+    "mode": "planar",
+    "angle": 90,
+    "scale": 1
+   }
+  },
+  {
+   "id": "spine",
+   "name": "Cable spine",
+   "groupId": "metal",
+   "kind": "metal",
+   "regions": [
+    {
+     "type": "poly",
+     "points": [
+      [
+       228,
+       270
+      ],
+      [
+       270,
+       270
+      ],
+      [
+       270,
+       366
+      ],
+      [
+       228,
+       366
+      ]
+     ],
+     "maxL": 60
+    }
+   ],
+   "mapping": {
+    "mode": "planar",
+    "angle": 0,
+    "scale": 1
+   }
+  },
+  {
+   "id": "screen",
+   "name": "Screen panels",
+   "groupId": "screens",
+   "kind": "fabric",
+   "regions": [
+    {
+     "type": "poly",
+     "points": [
+      [
+       108,
+       200
+      ],
+      [
+       350,
+       196
+      ],
+      [
+       351,
+       246
+      ],
+      [
+       306,
+       248
+      ],
+      [
+       306,
+       282
+      ],
+      [
+       299,
+       282
+      ],
+      [
+       299,
+       251
+      ],
+      [
+       244,
+       256
+      ],
+      [
+       244,
+       263
+      ],
+      [
+       113,
+       263
+      ],
+      [
+       113,
+       284
+      ],
+      [
+       108,
+       284
+      ]
+     ],
+     "minL": 55
+    }
+   ],
+   "mapping": {
+    "mode": "planar",
+    "angle": 0,
+    "scale": 1
+   },
+   "tuning": {
+    "smoothing": 0.7
+   }
+  },
+  {
+   "id": "screenframe",
+   "name": "Screen frame",
+   "groupId": "metal",
+   "kind": "metal",
+   "regions": [
+    {
+     "type": "poly",
+     "points": [
+      [
+       108,
+       200
+      ],
+      [
+       350,
+       196
+      ],
+      [
+       351,
+       246
+      ],
+      [
+       306,
+       248
+      ],
+      [
+       306,
+       252
+      ],
+      [
+       244,
+       256
+      ],
+      [
+       244,
+       259
+      ],
+      [
+       113,
+       259
+      ]
+     ],
+     "maxL": 50
+    },
+    {
+     "type": "poly",
+     "points": [
+      [
+       107,
+       200
+      ],
+      [
+       114,
+       200
+      ],
+      [
+       114,
+       285
+      ],
+      [
+       107,
+       285
+      ]
+     ],
+     "maxL": 55
+    },
+    {
+     "type": "poly",
+     "points": [
+      [
+       237,
+       200
+      ],
+      [
+       245,
+       200
+      ],
+      [
+       245,
+       266
+      ],
+      [
+       237,
+       266
+      ]
+     ],
+     "maxL": 55
+    },
+    {
+     "type": "poly",
+     "points": [
+      [
+       298,
+       198
+      ],
+      [
+       307,
+       198
+      ],
+      [
+       307,
+       283
+      ],
+      [
+       298,
+       283
+      ]
+     ],
+     "maxL": 55
+    }
+   ],
+   "mapping": {
+    "mode": "planar",
+    "angle": 0,
+    "scale": 1
+   }
+  }
+ ],
+ "presets": [
+  {
+   "name": "Light & airy",
+   "selection": {
+    "worktops": "wood-8846",
+    "screens": "fabric-koya-42",
+    "legs": "wood-6801",
+    "metal": "metal-9216"
+   }
+  },
+  {
+   "name": "Corporate dark",
+   "selection": {
+    "worktops": "wood-8231",
+    "screens": "fabric-602",
+    "legs": "metal-9005",
+    "metal": "metal-9005"
+   }
+  },
+  {
+   "name": "Brand colour",
+   "selection": {
+    "worktops": "wood-101",
+    "screens": "fabric-koya-28",
+    "legs": "wood-253",
+    "metal": "metal-860"
+   }
+  }
+ ],
+ "origin": "demo"
+}

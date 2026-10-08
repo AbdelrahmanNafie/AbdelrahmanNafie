@@ -1,0 +1,1764 @@
+{
+ "version": 1,
+ "source": "3bc1b07a-Mobica_Finishes.pdf",
+ "materials": [
+  {
+   "id": "fabric-101",
+   "code": "101",
+   "name": "Orange",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "Melange wool-look",
+   "source": "Mobica Finishes 2024-II, p.3",
+   "texture": "materials/fabric-101.jpg",
+   "thumb": "materials/thumbs/fabric-101.jpg",
+   "avgColor": "#bf702e",
+   "avgLinear": [
+    0.5363,
+    0.1683,
+    0.0291
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-211",
+   "code": "211",
+   "name": "Red",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "Melange wool-look",
+   "source": "Mobica Finishes 2024-II, p.4",
+   "texture": "materials/fabric-211.jpg",
+   "thumb": "materials/thumbs/fabric-211.jpg",
+   "avgColor": "#541819",
+   "avgLinear": [
+    0.0925,
+    0.0097,
+    0.0103
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-302",
+   "code": "302",
+   "name": "Navy",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "Melange wool-look",
+   "source": "Mobica Finishes 2024-II, p.5",
+   "texture": "materials/fabric-302.jpg",
+   "thumb": "materials/thumbs/fabric-302.jpg",
+   "avgColor": "#232b36",
+   "avgLinear": [
+    0.0185,
+    0.0256,
+    0.0388
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-505",
+   "code": "505",
+   "name": "Off White",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "Melange wool-look",
+   "source": "Mobica Finishes 2024-II, p.6",
+   "texture": "materials/fabric-505.jpg",
+   "thumb": "materials/thumbs/fabric-505.jpg",
+   "avgColor": "#d5c2b8",
+   "avgLinear": [
+    0.6694,
+    0.5452,
+    0.4852
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-601",
+   "code": "601",
+   "name": "Light Gray",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "Melange wool-look",
+   "source": "Mobica Finishes 2024-II, p.7",
+   "texture": "materials/fabric-601.jpg",
+   "thumb": "materials/thumbs/fabric-601.jpg",
+   "avgColor": "#848381",
+   "avgLinear": [
+    0.241,
+    0.2355,
+    0.2279
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-602",
+   "code": "602",
+   "name": "Dark Gray",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "Melange wool-look",
+   "source": "Mobica Finishes 2024-II, p.8",
+   "texture": "materials/fabric-602.jpg",
+   "thumb": "materials/thumbs/fabric-602.jpg",
+   "avgColor": "#404041",
+   "avgLinear": [
+    0.0573,
+    0.0582,
+    0.0586
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-koya-10",
+   "code": "Koya-10",
+   "name": "Light Gray",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "Koya woven",
+   "source": "Mobica Finishes 2024-II, p.9",
+   "texture": "materials/fabric-koya-10.jpg",
+   "thumb": "materials/thumbs/fabric-koya-10.jpg",
+   "avgColor": "#8e958f",
+   "avgLinear": [
+    0.2892,
+    0.3207,
+    0.2933
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-koya-12",
+   "code": "Koya-12",
+   "name": "Dark Gray",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "Koya woven",
+   "source": "Mobica Finishes 2024-II, p.10",
+   "texture": "materials/fabric-koya-12.jpg",
+   "thumb": "materials/thumbs/fabric-koya-12.jpg",
+   "avgColor": "#47484a",
+   "avgLinear": [
+    0.0726,
+    0.0755,
+    0.0787
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-koya-23",
+   "code": "Koya-23",
+   "name": "Olive",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "Koya woven",
+   "source": "Mobica Finishes 2024-II, p.11",
+   "texture": "materials/fabric-koya-23.jpg",
+   "thumb": "materials/thumbs/fabric-koya-23.jpg",
+   "avgColor": "#928c63",
+   "avgLinear": [
+    0.3083,
+    0.281,
+    0.1524
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-koya-25",
+   "code": "Koya-25",
+   "name": "Dark Green",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "Koya woven",
+   "source": "Mobica Finishes 2024-II, p.12",
+   "texture": "materials/fabric-koya-25.jpg",
+   "thumb": "materials/thumbs/fabric-koya-25.jpg",
+   "avgColor": "#414437",
+   "avgLinear": [
+    0.0604,
+    0.0672,
+    0.0441
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-koya-28",
+   "code": "Koya-28",
+   "name": "Orange",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "Koya woven",
+   "source": "Mobica Finishes 2024-II, p.13",
+   "texture": "materials/fabric-koya-28.jpg",
+   "thumb": "materials/thumbs/fabric-koya-28.jpg",
+   "avgColor": "#aa7c5d",
+   "avgLinear": [
+    0.4202,
+    0.2206,
+    0.1372
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-koya-31",
+   "code": "Koya-31",
+   "name": "Dark Red",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "Koya woven",
+   "source": "Mobica Finishes 2024-II, p.14",
+   "texture": "materials/fabric-koya-31.jpg",
+   "thumb": "materials/thumbs/fabric-koya-31.jpg",
+   "avgColor": "#834050",
+   "avgLinear": [
+    0.2762,
+    0.0595,
+    0.0901
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-koya-41",
+   "code": "Koya-41",
+   "name": "Gray",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "Koya woven",
+   "source": "Mobica Finishes 2024-II, p.15",
+   "texture": "materials/fabric-koya-41.jpg",
+   "thumb": "materials/thumbs/fabric-koya-41.jpg",
+   "avgColor": "#969495",
+   "avgLinear": [
+    0.3234,
+    0.3134,
+    0.3169
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-koya-42",
+   "code": "Koya-42",
+   "name": "Light Blue",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "Koya woven",
+   "source": "Mobica Finishes 2024-II, p.16",
+   "texture": "materials/fabric-koya-42.jpg",
+   "thumb": "materials/thumbs/fabric-koya-42.jpg",
+   "avgColor": "#738988",
+   "avgLinear": [
+    0.196,
+    0.2711,
+    0.2679
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-koya-45",
+   "code": "Koya-45",
+   "name": "Blue",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "Koya woven",
+   "source": "Mobica Finishes 2024-II, p.17",
+   "texture": "materials/fabric-koya-45.jpg",
+   "thumb": "materials/thumbs/fabric-koya-45.jpg",
+   "avgColor": "#455a5f",
+   "avgLinear": [
+    0.0724,
+    0.1174,
+    0.1302
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-koya-48",
+   "code": "Koya-48",
+   "name": "Turquoise",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "Koya woven",
+   "source": "Mobica Finishes 2024-II, p.18",
+   "texture": "materials/fabric-koya-48.jpg",
+   "thumb": "materials/thumbs/fabric-koya-48.jpg",
+   "avgColor": "#304556",
+   "avgLinear": [
+    0.0374,
+    0.0728,
+    0.1116
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-koya-51",
+   "code": "Koya-51",
+   "name": "Petrolium",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "Koya woven",
+   "source": "Mobica Finishes 2024-II, p.19",
+   "texture": "materials/fabric-koya-51.jpg",
+   "thumb": "materials/thumbs/fabric-koya-51.jpg",
+   "avgColor": "#34415d",
+   "avgLinear": [
+    0.0414,
+    0.0625,
+    0.1221
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-01",
+   "code": "01",
+   "name": "Mocha",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "Basket weave",
+   "source": "Mobica Finishes 2024-II, p.20",
+   "texture": "materials/fabric-01.jpg",
+   "thumb": "materials/thumbs/fabric-01.jpg",
+   "avgColor": "#bdb7a8",
+   "avgLinear": [
+    0.5246,
+    0.4904,
+    0.4136
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-tx769-0016",
+   "code": "TX769-0016",
+   "name": "Mustard",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "TX769 basket weave",
+   "source": "Mobica Finishes 2024-II, p.21",
+   "texture": "materials/fabric-tx769-0016.jpg",
+   "thumb": "materials/thumbs/fabric-tx769-0016.jpg",
+   "avgColor": "#79653a",
+   "avgLinear": [
+    0.2077,
+    0.1413,
+    0.0483
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-tx769-0020",
+   "code": "TX769-0020",
+   "name": "Burgundy",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "TX769 basket weave",
+   "source": "Mobica Finishes 2024-II, p.22",
+   "texture": "materials/fabric-tx769-0020.jpg",
+   "thumb": "materials/thumbs/fabric-tx769-0020.jpg",
+   "avgColor": "#3d1a1a",
+   "avgLinear": [
+    0.0554,
+    0.0109,
+    0.0109
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-tx769-0027",
+   "code": "TX769-0027",
+   "name": "Orange",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "TX769 basket weave",
+   "source": "Mobica Finishes 2024-II, p.23",
+   "texture": "materials/fabric-tx769-0027.jpg",
+   "thumb": "materials/thumbs/fabric-tx769-0027.jpg",
+   "avgColor": "#a48067",
+   "avgLinear": [
+    0.3904,
+    0.2441,
+    0.1704
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-tx769-0041",
+   "code": "TX769-0041",
+   "name": "Blue",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "TX769 basket weave",
+   "source": "Mobica Finishes 2024-II, p.24",
+   "texture": "materials/fabric-tx769-0041.jpg",
+   "thumb": "materials/thumbs/fabric-tx769-0041.jpg",
+   "avgColor": "#3b4e64",
+   "avgLinear": [
+    0.0504,
+    0.0862,
+    0.143
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-tx769-0044",
+   "code": "TX769-0044",
+   "name": "Turquoise",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "TX769 basket weave",
+   "source": "Mobica Finishes 2024-II, p.25",
+   "texture": "materials/fabric-tx769-0044.jpg",
+   "thumb": "materials/thumbs/fabric-tx769-0044.jpg",
+   "avgColor": "#455f58",
+   "avgLinear": [
+    0.0664,
+    0.1265,
+    0.1121
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-tx769-0074",
+   "code": "TX769-0074",
+   "name": "Apple Green",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "TX769 basket weave",
+   "source": "Mobica Finishes 2024-II, p.26",
+   "texture": "materials/fabric-tx769-0074.jpg",
+   "thumb": "materials/thumbs/fabric-tx769-0074.jpg",
+   "avgColor": "#716f4c",
+   "avgLinear": [
+    0.182,
+    0.1712,
+    0.0811
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-tx769-0079",
+   "code": "TX769-0079",
+   "name": "Light Turquoise",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "TX769 basket weave",
+   "source": "Mobica Finishes 2024-II, p.27",
+   "texture": "materials/fabric-tx769-0079.jpg",
+   "thumb": "materials/thumbs/fabric-tx769-0079.jpg",
+   "avgColor": "#456e80",
+   "avgLinear": [
+    0.0668,
+    0.1702,
+    0.2332
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-tx769-0089",
+   "code": "TX769-0089",
+   "name": "Light Beige",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "TX769 basket weave",
+   "source": "Mobica Finishes 2024-II, p.28",
+   "texture": "materials/fabric-tx769-0089.jpg",
+   "thumb": "materials/thumbs/fabric-tx769-0089.jpg",
+   "avgColor": "#aba495",
+   "avgLinear": [
+    0.437,
+    0.4008,
+    0.3297
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-tx769-0090",
+   "code": "TX769-0090",
+   "name": "Light Gray",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "TX769 basket weave",
+   "source": "Mobica Finishes 2024-II, p.29",
+   "texture": "materials/fabric-tx769-0090.jpg",
+   "thumb": "materials/thumbs/fabric-tx769-0090.jpg",
+   "avgColor": "#9f9f9c",
+   "avgLinear": [
+    0.3611,
+    0.3609,
+    0.351
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-tx769-0805",
+   "code": "TX769-0805",
+   "name": "Café",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "TX769 basket weave",
+   "source": "Mobica Finishes 2024-II, p.30",
+   "texture": "materials/fabric-tx769-0805.jpg",
+   "thumb": "materials/thumbs/fabric-tx769-0805.jpg",
+   "avgColor": "#7c786f",
+   "avgLinear": [
+    0.2176,
+    0.2057,
+    0.1752
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-tx856-0027",
+   "code": "TX856-0027",
+   "name": "Orange",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "TX856 woven",
+   "source": "Mobica Finishes 2024-II, p.31",
+   "texture": "materials/fabric-tx856-0027.jpg",
+   "thumb": "materials/thumbs/fabric-tx856-0027.jpg",
+   "avgColor": "#a05e2f",
+   "avgLinear": [
+    0.3682,
+    0.1235,
+    0.0319
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-tx874-0082",
+   "code": "TX874-0082",
+   "name": "Light Blue",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "TX874 check weave",
+   "source": "Mobica Finishes 2024-II, p.32",
+   "texture": "materials/fabric-tx874-0082.jpg",
+   "thumb": "materials/thumbs/fabric-tx874-0082.jpg",
+   "avgColor": "#7c8c8a",
+   "avgLinear": [
+    0.2318,
+    0.2825,
+    0.2719
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "fabric-250",
+   "code": "250",
+   "name": "Black",
+   "category": "fabric",
+   "categoryLabel": "Fabric",
+   "finish": "Fine weave",
+   "source": "Mobica Finishes 2024-II, p.33",
+   "texture": "materials/fabric-250.jpg",
+   "thumb": "materials/thumbs/fabric-250.jpg",
+   "avgColor": "#141514",
+   "avgLinear": [
+    0.0073,
+    0.0078,
+    0.0077
+   ],
+   "tileCm": 7.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "fabric",
+    "spec": 0.04,
+    "gloss": 0.15,
+    "sheen": 0.25,
+    "relief": 0.55
+   }
+  },
+  {
+   "id": "leather-natural-500",
+   "code": "500",
+   "name": "Off-White",
+   "category": "leather-natural",
+   "categoryLabel": "Natural Leather",
+   "finish": "Natural leather",
+   "source": "Mobica Finishes 2024-II, p.35",
+   "texture": "materials/leather-natural-500.jpg",
+   "thumb": "materials/thumbs/leather-natural-500.jpg",
+   "avgColor": "#d7c1aa",
+   "avgLinear": [
+    0.69,
+    0.5396,
+    0.4116
+   ],
+   "tileCm": 22.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "leather",
+    "spec": 0.3,
+    "gloss": 0.45,
+    "sheen": 0.0,
+    "relief": 0.35
+   }
+  },
+  {
+   "id": "leather-natural-503",
+   "code": "503",
+   "name": "Havan",
+   "category": "leather-natural",
+   "categoryLabel": "Natural Leather",
+   "finish": "Natural leather",
+   "source": "Mobica Finishes 2024-II, p.36",
+   "texture": "materials/leather-natural-503.jpg",
+   "thumb": "materials/thumbs/leather-natural-503.jpg",
+   "avgColor": "#633924",
+   "avgLinear": [
+    0.1311,
+    0.0426,
+    0.0186
+   ],
+   "tileCm": 22.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "leather",
+    "spec": 0.3,
+    "gloss": 0.45,
+    "sheen": 0.0,
+    "relief": 0.35
+   }
+  },
+  {
+   "id": "leather-natural-507",
+   "code": "507",
+   "name": "Olive",
+   "category": "leather-natural",
+   "categoryLabel": "Natural Leather",
+   "finish": "Natural leather",
+   "source": "Mobica Finishes 2024-II, p.37",
+   "texture": "materials/leather-natural-507.jpg",
+   "thumb": "materials/thumbs/leather-natural-507.jpg",
+   "avgColor": "#323e38",
+   "avgLinear": [
+    0.0342,
+    0.0512,
+    0.0425
+   ],
+   "tileCm": 22.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "leather",
+    "spec": 0.3,
+    "gloss": 0.45,
+    "sheen": 0.0,
+    "relief": 0.35
+   }
+  },
+  {
+   "id": "leather-natural-508",
+   "code": "508",
+   "name": "Light Gray",
+   "category": "leather-natural",
+   "categoryLabel": "Natural Leather",
+   "finish": "Natural leather",
+   "source": "Mobica Finishes 2024-II, p.38",
+   "texture": "materials/leather-natural-508.jpg",
+   "thumb": "materials/thumbs/leather-natural-508.jpg",
+   "avgColor": "#706c69",
+   "avgLinear": [
+    0.1657,
+    0.1534,
+    0.1438
+   ],
+   "tileCm": 22.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "leather",
+    "spec": 0.3,
+    "gloss": 0.45,
+    "sheen": 0.0,
+    "relief": 0.35
+   }
+  },
+  {
+   "id": "leather-natural-512",
+   "code": "512",
+   "name": "Black",
+   "category": "leather-natural",
+   "categoryLabel": "Natural Leather",
+   "finish": "Natural leather",
+   "source": "Mobica Finishes 2024-II, p.39",
+   "texture": "materials/leather-natural-512.jpg",
+   "thumb": "materials/thumbs/leather-natural-512.jpg",
+   "avgColor": "#202121",
+   "avgLinear": [
+    0.0183,
+    0.019,
+    0.0193
+   ],
+   "tileCm": 22.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "leather",
+    "spec": 0.3,
+    "gloss": 0.45,
+    "sheen": 0.0,
+    "relief": 0.35
+   }
+  },
+  {
+   "id": "leather-artificial-mb009",
+   "code": "MB009",
+   "name": "Dark Beige",
+   "category": "leather-artificial",
+   "categoryLabel": "Artificial Leather",
+   "finish": "Artificial leather",
+   "source": "Mobica Finishes 2024-II, p.41",
+   "texture": "materials/leather-artificial-mb009.jpg",
+   "thumb": "materials/thumbs/leather-artificial-mb009.jpg",
+   "avgColor": "#8c7767",
+   "avgLinear": [
+    0.2669,
+    0.1884,
+    0.1377
+   ],
+   "tileCm": 22.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "leather",
+    "spec": 0.42,
+    "gloss": 0.6,
+    "sheen": 0.0,
+    "relief": 0.35
+   }
+  },
+  {
+   "id": "leather-artificial-mb010",
+   "code": "MB010",
+   "name": "Beige",
+   "category": "leather-artificial",
+   "categoryLabel": "Artificial Leather",
+   "finish": "Artificial leather",
+   "source": "Mobica Finishes 2024-II, p.42",
+   "texture": "materials/leather-artificial-mb010.jpg",
+   "thumb": "materials/thumbs/leather-artificial-mb010.jpg",
+   "avgColor": "#e9d5c1",
+   "avgLinear": [
+    0.8181,
+    0.6741,
+    0.538
+   ],
+   "tileCm": 22.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "leather",
+    "spec": 0.42,
+    "gloss": 0.6,
+    "sheen": 0.0,
+    "relief": 0.35
+   }
+  },
+  {
+   "id": "leather-artificial-mb012",
+   "code": "MB012",
+   "name": "Olive",
+   "category": "leather-artificial",
+   "categoryLabel": "Artificial Leather",
+   "finish": "Artificial leather",
+   "source": "Mobica Finishes 2024-II, p.43",
+   "texture": "materials/leather-artificial-mb012.jpg",
+   "thumb": "materials/thumbs/leather-artificial-mb012.jpg",
+   "avgColor": "#6b6c5c",
+   "avgLinear": [
+    0.1493,
+    0.1519,
+    0.1086
+   ],
+   "tileCm": 22.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "leather",
+    "spec": 0.42,
+    "gloss": 0.6,
+    "sheen": 0.0,
+    "relief": 0.35
+   }
+  },
+  {
+   "id": "leather-artificial-mb013",
+   "code": "MB013",
+   "name": "Petrolium",
+   "category": "leather-artificial",
+   "categoryLabel": "Artificial Leather",
+   "finish": "Artificial leather",
+   "source": "Mobica Finishes 2024-II, p.44",
+   "texture": "materials/leather-artificial-mb013.jpg",
+   "thumb": "materials/thumbs/leather-artificial-mb013.jpg",
+   "avgColor": "#454a5b",
+   "avgLinear": [
+    0.0603,
+    0.0707,
+    0.1068
+   ],
+   "tileCm": 22.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "leather",
+    "spec": 0.42,
+    "gloss": 0.6,
+    "sheen": 0.0,
+    "relief": 0.35
+   }
+  },
+  {
+   "id": "leather-artificial-k401",
+   "code": "K401",
+   "name": "Cream",
+   "category": "leather-artificial",
+   "categoryLabel": "Artificial Leather",
+   "finish": "Artificial leather",
+   "source": "Mobica Finishes 2024-II, p.45",
+   "texture": "materials/leather-artificial-k401.jpg",
+   "thumb": "materials/thumbs/leather-artificial-k401.jpg",
+   "avgColor": "#dfd4cb",
+   "avgLinear": [
+    0.7402,
+    0.6607,
+    0.6046
+   ],
+   "tileCm": 22.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "leather",
+    "spec": 0.42,
+    "gloss": 0.6,
+    "sheen": 0.0,
+    "relief": 0.35
+   }
+  },
+  {
+   "id": "leather-artificial-2001",
+   "code": "2001",
+   "name": "Camel",
+   "category": "leather-artificial",
+   "categoryLabel": "Artificial Leather",
+   "finish": "Artificial leather",
+   "source": "Mobica Finishes 2024-II, p.46",
+   "texture": "materials/leather-artificial-2001.jpg",
+   "thumb": "materials/thumbs/leather-artificial-2001.jpg",
+   "avgColor": "#5d392b",
+   "avgLinear": [
+    0.1126,
+    0.0428,
+    0.0257
+   ],
+   "tileCm": 22.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "leather",
+    "spec": 0.42,
+    "gloss": 0.6,
+    "sheen": 0.0,
+    "relief": 0.35
+   }
+  },
+  {
+   "id": "leather-artificial-2412",
+   "code": "2412",
+   "name": "Black",
+   "category": "leather-artificial",
+   "categoryLabel": "Artificial Leather",
+   "finish": "Artificial leather",
+   "source": "Mobica Finishes 2024-II, p.47",
+   "texture": "materials/leather-artificial-2412.jpg",
+   "thumb": "materials/thumbs/leather-artificial-2412.jpg",
+   "avgColor": "#222324",
+   "avgLinear": [
+    0.0182,
+    0.0194,
+    0.02
+   ],
+   "tileCm": 22.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "leather",
+    "spec": 0.42,
+    "gloss": 0.6,
+    "sheen": 0.0,
+    "relief": 0.35
+   }
+  },
+  {
+   "id": "wood-101",
+   "code": "101",
+   "name": "White",
+   "category": "wood",
+   "categoryLabel": "Wood",
+   "finish": "Melamine plain",
+   "source": "Mobica Finishes 2024-II, p.49",
+   "texture": "materials/wood-101.jpg",
+   "thumb": "materials/thumbs/wood-101.jpg",
+   "avgColor": "#f9f9f9",
+   "avgLinear": [
+    0.9485,
+    0.949,
+    0.9488
+   ],
+   "tileCm": 55.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "wood",
+    "spec": 0.22,
+    "gloss": 0.55,
+    "sheen": 0.0,
+    "relief": 0.08
+   }
+  },
+  {
+   "id": "wood-116",
+   "code": "116",
+   "name": "Viviani Grey",
+   "category": "wood",
+   "categoryLabel": "Wood",
+   "finish": "Wood decor",
+   "source": "Mobica Finishes 2024-II, p.50",
+   "texture": "materials/wood-116.jpg",
+   "thumb": "materials/thumbs/wood-116.jpg",
+   "avgColor": "#aaa3a0",
+   "avgLinear": [
+    0.4083,
+    0.3732,
+    0.3545
+   ],
+   "tileCm": 55.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "wood",
+    "spec": 0.22,
+    "gloss": 0.55,
+    "sheen": 0.0,
+    "relief": 0.15
+   }
+  },
+  {
+   "id": "wood-253",
+   "code": "253",
+   "name": "Light Walnut",
+   "category": "wood",
+   "categoryLabel": "Wood",
+   "finish": "Wood decor",
+   "source": "Mobica Finishes 2024-II, p.51",
+   "texture": "materials/wood-253.jpg",
+   "thumb": "materials/thumbs/wood-253.jpg",
+   "avgColor": "#b0967e",
+   "avgLinear": [
+    0.4405,
+    0.3097,
+    0.2139
+   ],
+   "tileCm": 55.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "wood",
+    "spec": 0.22,
+    "gloss": 0.55,
+    "sheen": 0.0,
+    "relief": 0.15
+   }
+  },
+  {
+   "id": "wood-461",
+   "code": "461",
+   "name": "Dark Walnut",
+   "category": "wood",
+   "categoryLabel": "Wood",
+   "finish": "Wood decor",
+   "source": "Mobica Finishes 2024-II, p.52",
+   "texture": "materials/wood-461.jpg",
+   "thumb": "materials/thumbs/wood-461.jpg",
+   "avgColor": "#4a2e1f",
+   "avgLinear": [
+    0.0712,
+    0.028,
+    0.0142
+   ],
+   "tileCm": 55.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "wood",
+    "spec": 0.22,
+    "gloss": 0.55,
+    "sheen": 0.0,
+    "relief": 0.15
+   }
+  },
+  {
+   "id": "wood-6801",
+   "code": "6801",
+   "name": "Oak Royal",
+   "category": "wood",
+   "categoryLabel": "Wood",
+   "finish": "Wood decor",
+   "source": "Mobica Finishes 2024-II, p.53",
+   "texture": "materials/wood-6801.jpg",
+   "thumb": "materials/thumbs/wood-6801.jpg",
+   "avgColor": "#d5ba9d",
+   "avgLinear": [
+    0.6731,
+    0.4975,
+    0.3412
+   ],
+   "tileCm": 55.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "wood",
+    "spec": 0.22,
+    "gloss": 0.55,
+    "sheen": 0.0,
+    "relief": 0.15
+   }
+  },
+  {
+   "id": "wood-8231",
+   "code": "8231",
+   "name": "Moro",
+   "category": "wood",
+   "categoryLabel": "Wood",
+   "finish": "Wood decor",
+   "source": "Mobica Finishes 2024-II, p.54",
+   "texture": "materials/wood-8231.jpg",
+   "thumb": "materials/thumbs/wood-8231.jpg",
+   "avgColor": "#2a2526",
+   "avgLinear": [
+    0.0235,
+    0.0192,
+    0.0202
+   ],
+   "tileCm": 55.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "wood",
+    "spec": 0.22,
+    "gloss": 0.55,
+    "sheen": 0.0,
+    "relief": 0.15
+   }
+  },
+  {
+   "id": "wood-8846",
+   "code": "8846",
+   "name": "Sorrento White",
+   "category": "wood",
+   "categoryLabel": "Wood",
+   "finish": "Wood decor",
+   "source": "Mobica Finishes 2024-II, p.55",
+   "texture": "materials/wood-8846.jpg",
+   "thumb": "materials/thumbs/wood-8846.jpg",
+   "avgColor": "#b8a99e",
+   "avgLinear": [
+    0.4804,
+    0.4016,
+    0.3462
+   ],
+   "tileCm": 55.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "wood",
+    "spec": 0.22,
+    "gloss": 0.55,
+    "sheen": 0.0,
+    "relief": 0.15
+   }
+  },
+  {
+   "id": "metal-540",
+   "code": "540",
+   "name": "Off-White",
+   "category": "metal",
+   "categoryLabel": "Metal",
+   "finish": "Powder coat",
+   "source": "Mobica Finishes 2024-II, p.57",
+   "texture": "materials/metal-540.jpg",
+   "thumb": "materials/thumbs/metal-540.jpg",
+   "avgColor": "#f2e3d5",
+   "avgLinear": [
+    0.8879,
+    0.7682,
+    0.6654
+   ],
+   "tileCm": 14.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "metal",
+    "spec": 0.45,
+    "gloss": 0.5,
+    "sheen": 0.0,
+    "relief": 0.1,
+    "metallic": 0.0
+   }
+  },
+  {
+   "id": "metal-860",
+   "code": "860",
+   "name": "Graphite",
+   "category": "metal",
+   "categoryLabel": "Metal",
+   "finish": "Powder coat",
+   "source": "Mobica Finishes 2024-II, p.58",
+   "texture": "materials/metal-860.jpg",
+   "thumb": "materials/thumbs/metal-860.jpg",
+   "avgColor": "#5c5f5f",
+   "avgLinear": [
+    0.1094,
+    0.117,
+    0.117
+   ],
+   "tileCm": 14.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "metal",
+    "spec": 0.45,
+    "gloss": 0.5,
+    "sheen": 0.0,
+    "relief": 0.1,
+    "metallic": 0.0
+   }
+  },
+  {
+   "id": "metal-8519-1",
+   "code": "8519-1",
+   "name": "Copper",
+   "category": "metal",
+   "categoryLabel": "Metal",
+   "finish": "Textured metallic powder coat",
+   "source": "Mobica Finishes 2024-II, p.59",
+   "texture": "materials/metal-8519-1.jpg",
+   "thumb": "materials/thumbs/metal-8519-1.jpg",
+   "avgColor": "#22191a",
+   "avgLinear": [
+    0.0161,
+    0.0098,
+    0.0104
+   ],
+   "tileCm": 14.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "metal",
+    "spec": 0.7,
+    "gloss": 0.4,
+    "sheen": 0.0,
+    "relief": 0.45,
+    "metallic": 0.6
+   }
+  },
+  {
+   "id": "metal-9005",
+   "code": "9005",
+   "name": "Black",
+   "category": "metal",
+   "categoryLabel": "Metal",
+   "finish": "Powder coat",
+   "source": "Mobica Finishes 2024-II, p.60",
+   "texture": "materials/metal-9005.jpg",
+   "thumb": "materials/thumbs/metal-9005.jpg",
+   "avgColor": "#040203",
+   "avgLinear": [
+    0.0015,
+    0.0009,
+    0.0012
+   ],
+   "tileCm": 14.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "metal",
+    "spec": 0.45,
+    "gloss": 0.5,
+    "sheen": 0.0,
+    "relief": 0.1,
+    "metallic": 0.0
+   }
+  },
+  {
+   "id": "metal-9006",
+   "code": "9006",
+   "name": "Silver",
+   "category": "metal",
+   "categoryLabel": "Metal",
+   "finish": "Metallic powder coat",
+   "source": "Mobica Finishes 2024-II, p.61",
+   "texture": "materials/metal-9006.jpg",
+   "thumb": "materials/thumbs/metal-9006.jpg",
+   "avgColor": "#a7a9a8",
+   "avgLinear": [
+    0.39,
+    0.3974,
+    0.3927
+   ],
+   "tileCm": 14.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "metal",
+    "spec": 0.85,
+    "gloss": 0.6,
+    "sheen": 0.0,
+    "relief": 0.15,
+    "metallic": 0.75
+   }
+  },
+  {
+   "id": "metal-9216",
+   "code": "9216",
+   "name": "White",
+   "category": "metal",
+   "categoryLabel": "Metal",
+   "finish": "Powder coat",
+   "source": "Mobica Finishes 2024-II, p.62",
+   "texture": "materials/metal-9216.jpg",
+   "thumb": "materials/thumbs/metal-9216.jpg",
+   "avgColor": "#f8f6f5",
+   "avgLinear": [
+    0.9387,
+    0.9216,
+    0.9131
+   ],
+   "tileCm": 14.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "metal",
+    "spec": 0.45,
+    "gloss": 0.5,
+    "sheen": 0.0,
+    "relief": 0.1,
+    "metallic": 0.0
+   }
+  },
+  {
+   "id": "metal-1017",
+   "code": "1017",
+   "name": "Yellow",
+   "category": "metal",
+   "categoryLabel": "Metal",
+   "finish": "Powder coat",
+   "source": "Mobica Finishes 2024-II, p.63",
+   "texture": "materials/metal-1017.jpg",
+   "thumb": "materials/thumbs/metal-1017.jpg",
+   "avgColor": "#f1a841",
+   "avgLinear": [
+    0.8796,
+    0.3967,
+    0.0545
+   ],
+   "tileCm": 14.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "metal",
+    "spec": 0.45,
+    "gloss": 0.5,
+    "sheen": 0.0,
+    "relief": 0.1,
+    "metallic": 0.0
+   }
+  },
+  {
+   "id": "metal-3012",
+   "code": "3012",
+   "name": "Simon",
+   "category": "metal",
+   "categoryLabel": "Metal",
+   "finish": "Powder coat",
+   "source": "Mobica Finishes 2024-II, p.64",
+   "texture": "materials/metal-3012.jpg",
+   "thumb": "materials/thumbs/metal-3012.jpg",
+   "avgColor": "#c5836c",
+   "avgLinear": [
+    0.5647,
+    0.2307,
+    0.1529
+   ],
+   "tileCm": 14.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "metal",
+    "spec": 0.45,
+    "gloss": 0.5,
+    "sheen": 0.0,
+    "relief": 0.1,
+    "metallic": 0.0
+   }
+  },
+  {
+   "id": "metal-3015",
+   "code": "3015",
+   "name": "Light Pink",
+   "category": "metal",
+   "categoryLabel": "Metal",
+   "finish": "Powder coat",
+   "source": "Mobica Finishes 2024-II, p.65",
+   "texture": "materials/metal-3015.jpg",
+   "thumb": "materials/thumbs/metal-3015.jpg",
+   "avgColor": "#d89ea5",
+   "avgLinear": [
+    0.6867,
+    0.3419,
+    0.3813
+   ],
+   "tileCm": 14.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "metal",
+    "spec": 0.45,
+    "gloss": 0.5,
+    "sheen": 0.0,
+    "relief": 0.1,
+    "metallic": 0.0
+   }
+  },
+  {
+   "id": "metal-6013",
+   "code": "6013",
+   "name": "Olive",
+   "category": "metal",
+   "categoryLabel": "Metal",
+   "finish": "Powder coat",
+   "source": "Mobica Finishes 2024-II, p.66",
+   "texture": "materials/metal-6013.jpg",
+   "thumb": "materials/thumbs/metal-6013.jpg",
+   "avgColor": "#7c775b",
+   "avgLinear": [
+    0.2051,
+    0.1878,
+    0.107
+   ],
+   "tileCm": 14.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "metal",
+    "spec": 0.45,
+    "gloss": 0.5,
+    "sheen": 0.0,
+    "relief": 0.1,
+    "metallic": 0.0
+   }
+  },
+  {
+   "id": "metal-6027",
+   "code": "6027",
+   "name": "Light Green",
+   "category": "metal",
+   "categoryLabel": "Metal",
+   "finish": "Powder coat",
+   "source": "Mobica Finishes 2024-II, p.67",
+   "texture": "materials/metal-6027.jpg",
+   "thumb": "materials/thumbs/metal-6027.jpg",
+   "avgColor": "#7eb9b6",
+   "avgLinear": [
+    0.2122,
+    0.491,
+    0.4735
+   ],
+   "tileCm": 14.0,
+   "inCatalog": true,
+   "render": {
+    "kind": "metal",
+    "spec": 0.45,
+    "gloss": 0.5,
+    "sheen": 0.0,
+    "relief": 0.1,
+    "metallic": 0.0
+   }
+  },
+  {
+   "id": "marble-carrara",
+   "code": "MARBLE-CARRARA",
+   "name": "Carrara White",
+   "category": "concept",
+   "categoryLabel": "Concept (not in catalog)",
+   "finish": "Polished marble",
+   "source": "Procedural demo material - not part of the Mobica catalog",
+   "texture": "materials/marble-carrara.jpg",
+   "thumb": "materials/thumbs/marble-carrara.jpg",
+   "avgColor": "#e9e7e3",
+   "avgLinear": [
+    0.8177,
+    0.8028,
+    0.7737
+   ],
+   "tileCm": 70.0,
+   "inCatalog": false,
+   "render": {
+    "kind": "stone",
+    "spec": 0.55,
+    "gloss": 0.85,
+    "sheen": 0.0,
+    "relief": 0.0
+   }
+  },
+  {
+   "id": "marble-nero",
+   "code": "MARBLE-NERO",
+   "name": "Nero Marquina",
+   "category": "concept",
+   "categoryLabel": "Concept (not in catalog)",
+   "finish": "Polished marble",
+   "source": "Procedural demo material - not part of the Mobica catalog",
+   "texture": "materials/marble-nero.jpg",
+   "thumb": "materials/thumbs/marble-nero.jpg",
+   "avgColor": "#1e1e1f",
+   "avgLinear": [
+    0.0182,
+    0.0179,
+    0.0187
+   ],
+   "tileCm": 70.0,
+   "inCatalog": false,
+   "render": {
+    "kind": "stone",
+    "spec": 0.6,
+    "gloss": 0.9,
+    "sheen": 0.0,
+    "relief": 0.0
+   }
+  },
+  {
+   "id": "brushed-nickel",
+   "code": "BRUSHED-NICKEL",
+   "name": "Brushed Nickel",
+   "category": "concept",
+   "categoryLabel": "Concept (not in catalog)",
+   "finish": "Brushed metal",
+   "source": "Procedural demo material - not part of the Mobica catalog",
+   "texture": "materials/brushed-nickel.jpg",
+   "thumb": "materials/thumbs/brushed-nickel.jpg",
+   "avgColor": "#aaa69e",
+   "avgLinear": [
+    0.4035,
+    0.3834,
+    0.3451
+   ],
+   "tileCm": 8.0,
+   "inCatalog": false,
+   "render": {
+    "kind": "metal",
+    "spec": 0.9,
+    "gloss": 0.45,
+    "sheen": 0.0,
+    "relief": 0.0,
+    "metallic": 1.0,
+    "aniso": 1.0
+   }
+  },
+  {
+   "id": "chrome",
+   "code": "CHROME",
+   "name": "Polished Chrome",
+   "category": "concept",
+   "categoryLabel": "Concept (not in catalog)",
+   "finish": "Mirror metal",
+   "source": "Procedural demo material - not part of the Mobica catalog",
+   "texture": "materials/chrome.jpg",
+   "thumb": "materials/thumbs/chrome.jpg",
+   "avgColor": "#c8ccd2",
+   "avgLinear": [
+    0.5776,
+    0.6038,
+    0.6445
+   ],
+   "tileCm": 10.0,
+   "inCatalog": false,
+   "render": {
+    "kind": "chrome",
+    "spec": 1.0,
+    "gloss": 1.0,
+    "sheen": 0.0,
+    "relief": 0.0,
+    "metallic": 1.0
+   }
+  },
+  {
+   "id": "glass-clear",
+   "code": "GLASS-CLEAR",
+   "name": "Clear Glass",
+   "category": "concept",
+   "categoryLabel": "Concept (not in catalog)",
+   "finish": "Transparent (assumes white backdrop)",
+   "source": "Procedural demo material - not part of the Mobica catalog",
+   "texture": "materials/glass-clear.jpg",
+   "thumb": "materials/thumbs/glass-clear.jpg",
+   "avgColor": "#deece8",
+   "avgLinear": [
+    0.7305,
+    0.8388,
+    0.807
+   ],
+   "tileCm": 40.0,
+   "inCatalog": false,
+   "render": {
+    "kind": "glass",
+    "spec": 0.9,
+    "gloss": 1.0,
+    "sheen": 0.0,
+    "relief": 0.0,
+    "opacity": 0.18
+   }
+  },
+  {
+   "id": "glass-frosted",
+   "code": "GLASS-FROSTED",
+   "name": "Frosted Glass",
+   "category": "concept",
+   "categoryLabel": "Concept (not in catalog)",
+   "finish": "Satin etched (assumes white backdrop)",
+   "source": "Procedural demo material - not part of the Mobica catalog",
+   "texture": "materials/glass-frosted.jpg",
+   "thumb": "materials/thumbs/glass-frosted.jpg",
+   "avgColor": "#e6ecec",
+   "avgLinear": [
+    0.7979,
+    0.8454,
+    0.8454
+   ],
+   "tileCm": 40.0,
+   "inCatalog": false,
+   "render": {
+    "kind": "glass",
+    "spec": 0.35,
+    "gloss": 0.4,
+    "sheen": 0.0,
+    "relief": 0.0,
+    "opacity": 0.55
+   }
+  }
+ ]
+}
