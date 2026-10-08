@@ -6,7 +6,7 @@ import { paintCircle, smartSelect } from "../engine/segment";
 import { rasterizePolygon } from "../engine/imageOps";
 
 export type ViewMode = "result" | "original" | "split" | "side" | "diff";
-export type Tool = "pick" | "smart" | "brush" | "erase" | "poly" | "quad";
+export type Tool = "pick" | "smart" | "unsmart" | "brush" | "erase" | "poly" | "quad";
 
 export const PART_COLORS = ["#e4572e", "#29a3a3", "#f3a712", "#6a4c93", "#4c956c", "#d1495b", "#1982c4", "#8ac926", "#ff924c", "#b5179e"];
 
@@ -69,9 +69,24 @@ export function Stage(p: Props) {
   }, []);
 
   const panes = p.view === "side" ? 2 : 1;
-  const fit = Math.min((box.w - 48) / panes / session.w, (box.h - 48) / session.h);
-  const cssW = Math.max(50, Math.round(session.w * fit * p.zoom));
-  const cssH = Math.max(50, Math.round(session.h * fit * p.zoom));
+  // Frame the product, not the whole photo: crop to its bounding box plus a margin.
+  const pb = session.prepared.productBox;
+  const padX = (pb.x1 - pb.x0) * 0.08 + 8;
+  const padY = (pb.y1 - pb.y0) * 0.08 + 8;
+  const crop = {
+    x0: Math.max(0, pb.x0 - padX),
+    y0: Math.max(0, pb.y0 - padY),
+    x1: Math.min(session.w, pb.x1 + padX),
+    y1: Math.min(session.h, pb.y1 + padY),
+  };
+  const cropW = crop.x1 - crop.x0;
+  const cropH = crop.y1 - crop.y0;
+  const fit = Math.max(0.05, Math.min((box.w - 40 - (panes - 1) * 16) / panes / cropW, (box.h - 40) / cropH)) * p.zoom;
+  const cssW = Math.max(50, Math.round(session.w * fit));
+  const cssH = Math.max(50, Math.round(session.h * fit));
+  const frameW = Math.round(cropW * fit);
+  const frameH = Math.round(cropH * fit);
+  const layerPos = { left: -Math.round(crop.x0 * fit), top: -Math.round(crop.y0 * fit), width: cssW, height: cssH };
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const backW = Math.min(4096, Math.round(cssW * dpr));
   const backH = Math.min(4096, Math.round(cssH * dpr));
@@ -177,7 +192,7 @@ export function Stage(p: Props) {
       if (ed) {
         a = l === ed.activePart ? 120 : 70;
       } else if (l === p.hoverPart) {
-        a = 70;
+        a = 28;
         col = [255, 255, 255];
       } else if (p.highlightGroup && groupOf[l] === p.highlightGroup && p.view !== "original") {
         // edge only for the selected group
@@ -230,9 +245,9 @@ export function Stage(p: Props) {
       return;
     }
     if (ed.activePart < 0) return;
-    if (ed.tool === "smart") {
+    if (ed.tool === "smart" || ed.tool === "unsmart") {
       const m = smartSelect(session.li, x, y, { tolerance: ed.tolerance, smoothing: ed.smoothing, edgeStop: 6, ignoreBackground: ed.ignoreBackground });
-      commitMask(m, e.altKey || e.shiftKey ? 0 : 1);
+      commitMask(m, ed.tool === "unsmart" || e.altKey || e.shiftKey ? 0 : 1);
     } else if (ed.tool === "brush" || ed.tool === "erase") {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       const mask = new Uint8Array(session.w * session.h);
@@ -344,41 +359,49 @@ export function Stage(p: Props) {
   }, [ed, polyPts, cursor, session, cssW, cssH, scale]);
 
   const imgStyle = { width: cssW, height: cssH };
+  const frameStyle = { width: frameW, height: frameH };
+  const splitPx = crop.x0 * fit + split * frameW;
   return (
     <div className="stage" ref={wrap}>
       {glError && <div className="stage-error">Rendering needs WebGL2: {glError}</div>}
       <div className={`stage-inner ${p.view === "side" ? "side" : ""}`}>
         {p.view === "side" && (
           <figure className="pane">
-            <img src={session.spec.image} style={imgStyle} alt="Original photo" draggable={false} />
+            <div className="canvas-box" style={frameStyle}>
+              <div className="layers" style={layerPos}>
+                <img src={session.spec.image} style={imgStyle} alt="Original photo" draggable={false} />
+              </div>
+            </div>
             <figcaption>Original photo</figcaption>
           </figure>
         )}
         <figure className="pane">
-          <div
-            className="canvas-box"
-            style={{ ...imgStyle, cursor: cursorStyle }}
-            onPointerDown={onDown}
-            onPointerMove={onMove}
-            onPointerUp={onUp}
-            onPointerLeave={() => {
-              setCursor(null);
-              if (!p.editor) p.onHoverPart(-1);
-            }}
-            onDoubleClick={() => ed?.tool === "poly" && polyPts.length >= 3 && closePoly(polyPts)}
-          >
-            <canvas ref={canvas} style={imgStyle} data-testid="render-canvas" />
-            {(p.view === "original" || p.view === "split") && (
-              <img
-                className="orig-layer"
-                src={session.spec.image}
-                style={{ ...imgStyle, clipPath: p.view === "split" ? `inset(0 0 0 ${split * 100}%)` : undefined }}
-                alt=""
-                draggable={false}
-              />
-            )}
-            <canvas ref={overlay} className="overlay" style={imgStyle} />
-            {svg}
+          <div className="canvas-box" style={frameStyle}>
+            <div
+              className="layers"
+              style={{ ...layerPos, cursor: cursorStyle }}
+              onPointerDown={onDown}
+              onPointerMove={onMove}
+              onPointerUp={onUp}
+              onPointerLeave={() => {
+                setCursor(null);
+                if (!p.editor) p.onHoverPart(-1);
+              }}
+              onDoubleClick={() => ed?.tool === "poly" && polyPts.length >= 3 && closePoly(polyPts)}
+            >
+              <canvas ref={canvas} style={imgStyle} data-testid="render-canvas" />
+              {(p.view === "original" || p.view === "split") && (
+                <img
+                  className="orig-layer"
+                  src={session.spec.image}
+                  style={{ ...imgStyle, clipPath: p.view === "split" ? `inset(0 0 0 ${splitPx}px)` : undefined }}
+                  alt=""
+                  draggable={false}
+                />
+              )}
+              <canvas ref={overlay} className="overlay" style={imgStyle} />
+              {svg}
+            </div>
             {p.view === "split" && (
               <div
                 className="split-handle"
@@ -396,8 +419,9 @@ export function Stage(p: Props) {
                 <span>Customised ◂ ▸ Original</span>
               </div>
             )}
+            {p.view === "original" && <span className="badge-orig">Original photo</span>}
           </div>
-          {p.view === "side" && <figcaption>Customised render</figcaption>}
+          {p.view === "side" && <figcaption>Customised</figcaption>}
         </figure>
       </div>
     </div>

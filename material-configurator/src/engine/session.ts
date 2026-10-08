@@ -129,12 +129,17 @@ export class ProductSession {
       if (!m || !this.prepared.parts[i]?.area) return;
       if (!means.has(part.groupId)) means.set(part.groupId, this.groupMeanShade(part.groupId));
       const mp = { ...part.mapping, ...(mapping[part.id] ?? {}) } as Mapping;
+      const meanShade = means.get(part.groupId)!;
+      const t = tuningFor(this.spec, i, tuning[part.id]);
+      // Cameras compress the shading of very light objects (tone curve near white). When a light
+      // original (white boucle, pale oak) becomes a darker finish, restore that lost depth.
+      const toneRestore = 1 + Math.min(0.6, Math.max(0, (meanShade - 0.3) * 1.2));
       out.push({
         partIndex: i,
         material: m,
         map: mappingMatrix(mp, this.prepared.pxPerCm, m.tileCm),
-        meanShade: means.get(part.groupId)!,
-        tuning: tuningFor(this.spec, i, tuning[part.id]),
+        meanShade,
+        tuning: { ...t, contrast: t.contrast * toneRestore },
       });
     });
     return out;

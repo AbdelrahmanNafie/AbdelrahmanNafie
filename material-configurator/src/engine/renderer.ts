@@ -40,12 +40,19 @@ uniform float uMeanShade;
 uniform float uTexMeanLum;
 uniform int uKind;         // 0 fabric 1 leather 2 wood 3 metal 4 stone 5 chrome 6 glass
 uniform float uSpec, uGloss, uSheen, uRelief, uMetallic, uOpacity, uAniso;
+uniform float uBump;       // relief shading strength (weave / grain / pores lit by the studio key light)
+uniform float uStep;       // image pixels per output pixel
+uniform float uLodBias;    // negative = keep more texture detail when minified
 uniform float uContrast, uHighlights, uDetail, uExposure;
 out vec4 o;
 
 const vec3 LUM = vec3(0.2126, 0.7152, 0.0722);
 vec3 toLin(vec3 c) { return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)); }
 vec3 toSrgb(vec3 c) { c = max(c, 0.0); return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
+float lumAt(vec2 p) {
+  vec3 t = uMap * vec3(p, 1.0);
+  return dot(toLin(texture(uTex, t.xy / t.z, uLodBias).rgb), LUM);
+}
 
 void main() {
   vec4 pd = texture(uPart, vUv);
@@ -67,8 +74,18 @@ void main() {
 
   vec3 t = uMap * vec3(px, 1.0);
   vec2 tuv = t.xy / t.z;
-  vec3 A = toLin(texture(uTex, tuv).rgb);
+  vec3 A = toLin(texture(uTex, tuv, uLodBias).rgb);
   float aL = max(dot(A, LUM), 1e-4);
+
+  // Relief: treat the swatch's own luminance as a height map and light it from the
+  // upper left, like a studio key light. Gives weave, grain and pores a tactile 3D read.
+  float bump = 1.0;
+  if (uBump > 0.0) {
+    vec2 dx = vec2(uStep, 0.0), dy = vec2(0.0, uStep);
+    float hl = lumAt(px - dx), hr = lumAt(px + dx), hu = lumAt(px - dy), hd = lumAt(px + dy);
+    vec2 g = vec2(hr - hl, hd - hu) / (2.0 * max(uTexMeanLum, 1e-3));
+    bump = clamp(1.0 + uBump * dot(g, vec2(0.42, 0.9)), 0.55, 1.45);
+  }
   float relief = mix(1.0, aL / max(uTexMeanLum, 1e-4), uRelief);
   vec3 specTint = mix(vec3(1.0), A / aL * 0.9, uMetallic);
 
@@ -89,7 +106,12 @@ void main() {
     }
     float glossShape = mix(0.6, 1.4, uGloss);
     float aniso = mix(1.0, aL / max(uTexMeanLum, 1e-4) * aL / max(uTexMeanLum, 1e-4), uAniso);
-    col = A * diff * uExposure + hiAbs * uHighlights * uSpec * glossShape * relief * aniso * specTint;
+    col = A * diff * bump * uExposure + hiAbs * uHighlights * uSpec * glossShape * relief * aniso * specTint;
+    // soft gloss sheen on the lit side of curved surfaces, so glossy finishes read as glossy
+    // even when the original material was matte (e.g. fabric -> leather)
+    if (uKind == 1 || uKind == 2 || uKind == 3 || uKind == 4) {
+      col += specTint * max(light - 1.0, 0.0) * 0.22 * uSpec * mix(0.5, 1.2, uGloss) * relief;
+    }
     if (uKind == 3) {
       // metals: reflectance rises with lighting (cheap fresnel-ish lift on lit faces)
       col += A * max(light - 1.0, 0.0) * 0.25 * uMetallic;
@@ -294,6 +316,10 @@ export class Renderer {
       gl.uniform1f(u("uHighlights"), d.tuning.highlights);
       gl.uniform1f(u("uDetail"), r.kind === "chrome" ? Math.max(d.tuning.detail, 0.8) : d.tuning.detail);
       gl.uniform1f(u("uExposure"), d.tuning.exposure);
+      const bumpByKind: Record<string, number> = { fabric: 1.4, leather: 0.6, wood: 0.3, metal: 0.2, stone: 0, chrome: 0, glass: 0 };
+      gl.uniform1f(u("uBump"), (bumpByKind[r.kind] ?? 0) * Math.max(0.2, r.relief));
+      gl.uniform1f(u("uStep"), Math.max(0.5, this.imgW / width));
+      gl.uniform1f(u("uLodBias"), r.kind === "fabric" ? -0.15 : -0.1);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
     gl.disable(gl.BLEND);

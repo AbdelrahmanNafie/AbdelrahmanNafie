@@ -66,17 +66,22 @@ export function fileToDataUrl(f: Blob): Promise<string> {
   });
 }
 
-/** Downscale very large uploads so the browser pipeline stays interactive. */
-export async function normaliseUpload(f: File, maxEdge = 2400): Promise<string> {
+/**
+ * Bring uploads to a working size: very large photos are reduced so editing stays fast,
+ * small ones are enlarged (high-quality resampling) so masks and textures render smoothly.
+ */
+export async function normaliseUpload(f: File, maxEdge = 2400, minEdge = 1400): Promise<string> {
   const url = await fileToDataUrl(f);
   const img = new Image();
   img.src = url;
   await img.decode();
-  const k = Math.min(1, maxEdge / Math.max(img.naturalWidth, img.naturalHeight));
+  const long = Math.max(img.naturalWidth, img.naturalHeight);
+  const k = long > maxEdge ? maxEdge / long : long < minEdge ? minEdge / long : 1;
   const c = document.createElement("canvas");
   c.width = Math.round(img.naturalWidth * k);
   c.height = Math.round(img.naturalHeight * k);
   const ctx = c.getContext("2d")!;
+  ctx.imageSmoothingQuality = "high";
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, c.width, c.height);
   ctx.drawImage(img, 0, 0, c.width, c.height);

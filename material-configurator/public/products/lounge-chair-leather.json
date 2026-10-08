@@ -41,25 +41,8 @@
    "kind": "fabric",
    "regions": [
     {
-     "type": "poly",
-     "points": [
-      [
-       140,
-       180
-      ],
-      [
-       340,
-       180
-      ],
-      [
-       340,
-       330
-      ],
-      [
-       140,
-       330
-      ]
-     ]
+     "type": "bitmap",
+     "src": "products/lounge-chair-leather.mask-cushions.png"
     }
    ],
    "mapping": {
@@ -75,26 +58,8 @@
    "kind": "metal",
    "regions": [
     {
-     "type": "poly",
-     "points": [
-      [
-       145,
-       312
-      ],
-      [
-       340,
-       305
-      ],
-      [
-       340,
-       372
-      ],
-      [
-       145,
-       372
-      ]
-     ],
-     "maxL": 45
+     "type": "bitmap",
+     "src": "products/lounge-chair-leather.mask-base.png"
     }
    ],
    "mapping": {
@@ -110,86 +75,8 @@
    "kind": "leather",
    "regions": [
     {
-     "type": "poly",
-     "points": [
-      [
-       148,
-       190
-      ],
-      [
-       162,
-       189
-      ],
-      [
-       175,
-       220
-      ],
-      [
-       186,
-       262
-      ],
-      [
-       188,
-       320
-      ],
-      [
-       186,
-       338
-      ],
-      [
-       160,
-       336
-      ],
-      [
-       152,
-       334
-      ],
-      [
-       144,
-       310
-      ],
-      [
-       144,
-       215
-      ]
-     ]
-    },
-    {
-     "type": "poly",
-     "points": [
-      [
-       264,
-       206
-      ],
-      [
-       290,
-       208
-      ],
-      [
-       316,
-       216
-      ],
-      [
-       326,
-       250
-      ],
-      [
-       327,
-       267
-      ],
-      [
-       300,
-       258
-      ],
-      [
-       271,
-       253
-      ],
-      [
-       268,
-       230
-      ]
-     ]
+     "type": "bitmap",
+     "src": "products/lounge-chair-leather.mask-shell.png"
     }
    ],
    "mapping": {

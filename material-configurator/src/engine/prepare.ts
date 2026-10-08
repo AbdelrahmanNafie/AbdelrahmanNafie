@@ -22,14 +22,15 @@ import {
 } from "./imageOps";
 
 export const DEFAULT_TUNING: Record<PartKind, RenderTuning> = {
-  // smoothing is % of the image diagonal
-  wood: { smoothing: 0.9, contrast: 1, highlights: 1, detail: 0.15, exposure: 1 },
-  fabric: { smoothing: 1.1, contrast: 1, highlights: 0.6, detail: 0.12, exposure: 1 },
-  leather: { smoothing: 0.6, contrast: 1, highlights: 1, detail: 0.3, exposure: 1 },
-  metal: { smoothing: 0.18, contrast: 0.85, highlights: 1, detail: 0.5, exposure: 1 },
-  stone: { smoothing: 0.9, contrast: 1, highlights: 1, detail: 0.15, exposure: 1 },
-  glass: { smoothing: 0.4, contrast: 1, highlights: 1, detail: 0.4, exposure: 1 },
-  other: { smoothing: 0.8, contrast: 1, highlights: 1, detail: 0.2, exposure: 1 },
+  // smoothing is % of the image diagonal (tuned for ~1400-2400 px working images):
+  // small enough to keep folds, creases and rolled edges, large enough to drop the old grain/weave
+  wood: { smoothing: 0.45, contrast: 1, highlights: 1, detail: 0.12, exposure: 1 },
+  fabric: { smoothing: 0.4, contrast: 1, highlights: 0.6, detail: 0.1, exposure: 1 },
+  leather: { smoothing: 0.3, contrast: 1, highlights: 1.1, detail: 0.2, exposure: 1 },
+  metal: { smoothing: 0.12, contrast: 0.9, highlights: 1, detail: 0.4, exposure: 1 },
+  stone: { smoothing: 0.45, contrast: 1, highlights: 1, detail: 0.12, exposure: 1 },
+  glass: { smoothing: 0.3, contrast: 1, highlights: 1, detail: 0.4, exposure: 1 },
+  other: { smoothing: 0.4, contrast: 1, highlights: 1, detail: 0.15, exposure: 1 },
 };
 
 export interface PreparedPart {

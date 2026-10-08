@@ -44,7 +44,7 @@ export interface SmartSelectOptions {
 
 export function smartSelect(li: LoadedImage, sx: number, sy: number, o: SmartSelectOptions): Uint8Array {
   const { w, h, bg } = li;
-  const s = smoothedLab(li, Math.max(1, Math.round(o.smoothing)));
+  const s = smoothedLab(li, Math.max(1, Math.round(Math.max(o.smoothing, Math.hypot(w, h) / 450))));
   const out = new Uint8Array(w * h);
   const x0 = Math.round(sx);
   const y0 = Math.round(sy);
@@ -143,22 +143,23 @@ export interface Suggestion {
  */
 export function guessKind(li: LoadedImage, mask: Uint8Array): PartKind {
   const { w, h, lab } = li;
+  // measure texture at a fixed physical-ish scale, independent of the working resolution
+  const st = Math.max(1, Math.round(Math.hypot(w, h) / 680));
+  const sw = st * w;
   let n = 0, sL = 0, sA = 0, sB = 0, tex = 0, gxx = 0, gyy = 0, area = 0, perim = 0;
-  for (let y = 1; y < h - 1; y++)
-    for (let x = 1; x < w - 1; x++) {
+  for (let y = st; y < h - st; y++)
+    for (let x = st; x < w - st; x++) {
       const i = y * w + x;
       if (!mask[i]) continue;
       area++;
-      if (!mask[i - 1] || !mask[i + 1] || !mask[i - w] || !mask[i + w]) {
-        perim++;
-        continue;
-      }
+      if (!mask[i - 1] || !mask[i + 1] || !mask[i - w] || !mask[i + w]) perim++;
+      if (!mask[i - st] || !mask[i + st] || !mask[i - sw] || !mask[i + sw]) continue;
       n++;
       sL += lab.L[i];
       sA += lab.A[i];
       sB += lab.B[i];
-      const gx = lab.L[i + 1] - lab.L[i - 1];
-      const gy = lab.L[i + w] - lab.L[i - w];
+      const gx = lab.L[i + st] - lab.L[i - st];
+      const gy = lab.L[i + sw] - lab.L[i - sw];
       tex += Math.abs(gx) + Math.abs(gy);
       gxx += gx * gx;
       gyy += gy * gy;
@@ -169,9 +170,9 @@ export function guessKind(li: LoadedImage, mask: Uint8Array): PartKind {
   const hue = ((Math.atan2(sB / n, sA / n) * 180) / Math.PI + 360) % 360;
   const texture = tex / n; // mean |∇L|
   const directional = Math.abs(gxx - gyy) / (gxx + gyy + 1e-6); // grain runs one way
-  const thickness = (2 * area) / Math.max(1, perim); // ≈ mean stroke width in px
+  const thickness = (2 * area) / Math.max(1, perim) / st; // ≈ mean stroke width, in 680-px-diagonal units
   const warm = hue > 25 && hue < 90;
-  if (thickness < Math.hypot(w, h) * 0.012) return hue > 40 && hue < 90 && C > 12 && C < 35 ? "wood" : "metal"; // legs, frames, rails
+  if (thickness < 680 * 0.012) return hue > 40 && hue < 90 && C > 12 && C < 35 ? "wood" : "metal"; // legs, frames, rails
   if (C < 6 && L < 45) return "metal";
   if (texture > 12) return "fabric"; // patterned upholstery
   if (C >= 12 && texture < 6.5) return "leather"; // saturated & smooth

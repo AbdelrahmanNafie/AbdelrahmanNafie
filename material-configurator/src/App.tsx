@@ -11,7 +11,7 @@ import type { Renderer, PartDraw } from "./engine/renderer";
 import type { DrawItem } from "./engine/session";
 import { Stage, type ViewMode } from "./ui/Stage";
 import { Library } from "./ui/Library";
-import { GroupsPanel, TuningPanel } from "./ui/Panels";
+import { TuningPanel } from "./ui/Panels";
 import { ExportDialog } from "./ui/ExportDialog";
 import { SetupPanel, type ToolState } from "./ui/SetupPanel";
 
@@ -48,6 +48,8 @@ export default function App() {
   const [exportOpen, setExportOpen] = useState(false);
   const [fidelity, setFidelity] = useState<FidelityResult | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [tuneOpen, setTuneOpen] = useState(false);
   // setup mode
   const [draft, setDraft] = useState<ProductSpec | null>(null);
   const [activePart, setActivePart] = useState(0);
@@ -102,7 +104,10 @@ export default function App() {
         setVersion((v) => v + 1);
         setActiveGroup(spec.groups[0]?.id ?? null);
         setLoading(false);
-        if (!spec.parts.length) enterSetup(s, spec);
+        if (!spec.parts.length) {
+          enterSetup(s, spec);
+          autoDetectFor(s, spec, 3);
+        }
       })
       .catch((e) => setError(String(e)));
     return () => {
@@ -256,8 +261,8 @@ export default function App() {
     setVersion((v) => v + 1);
   };
 
-  const autoDetect = (k: number) => {
-    if (!session || !draft) return;
+  const autoDetect = (k: number) => session && draft && autoDetectFor(session, draft, k);
+  function autoDetectFor(session: ProductSession, draft: ProductSpec, k: number) {
     const sugg = autoSuggest(session.li, k);
     if (!sugg.length) return notify("Nothing to split — is the background white?");
     const parts: Part[] = [];
@@ -269,11 +274,16 @@ export default function App() {
       if (group) groups.push(group);
       for (let j = 0; j < labels.length; j++) if (sg.mask[j]) labels[j] = i;
     });
-    updateDraft({ ...draft, parts, groups }, labels);
+    const next = { ...draft, parts, groups };
+    session.setSpec(next);
+    session.setLabels(labels, undefined, st.tuning);
+    setDraft(next);
+    setDirty(true);
+    setVersion((v) => v + 1);
     setActivePart(0);
-    setTools((t) => ({ ...t, tool: "pick" }));
-    notify(`${parts.length} parts suggested — rename, regroup or refine them`);
-  };
+    setTools((t) => ({ ...t, tool: "smart" }));
+    notify(`Found ${parts.length} parts. Check their names and types, then fix any area that is wrong.`);
+  }
 
   const addPart = (kind: PartKind) => {
     if (!draft) return;
@@ -357,7 +367,8 @@ export default function App() {
   if (error) return <div className="fatal">Could not start: {error}</div>;
   const group = spec?.groups.find((g) => g.id === activeGroup) ?? null;
   const record = spec ? buildRecord(spec, st.selection, matMap) : null;
-  const unconfigured = spec ? spec.groups.every((g) => !st.selection[g.id]) : true;
+  const changed = spec ? spec.groups.some((g) => st.selection[g.id]) : false;
+  const selectedMat = group && st.selection[group.id] ? matMap.get(st.selection[group.id]!) : undefined;
 
   return (
     <div
@@ -372,10 +383,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <span className="logo">◆</span>
-          <div>
-            <b>Material Studio</b>
-            <small>Photo-based finish configurator · demo</small>
-          </div>
+          <b>Material Studio</b>
         </div>
         <nav className="products" aria-label="Products">
           {products.map((p) => (
@@ -384,70 +392,17 @@ export default function App() {
               <span>{p.name}</span>
             </button>
           ))}
-          <button className="prod add" onClick={() => uploadRef.current?.click()} disabled={mode === "setup"} title="Upload a studio photo (white background works best). You can also drop a file anywhere.">
+          <button className="prod add" onClick={() => uploadRef.current?.click()} disabled={mode === "setup"} title="Add your own product photo (white background works best)">
             <span className="plus">+</span>
-            <span>Upload product</span>
+            <span>Add product</span>
           </button>
           <input ref={uploadRef} type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])} />
         </nav>
       </header>
 
       <main className={`workspace ${mode}`}>
-        <aside className="left">
-          {spec && session && mode === "configure" && (
-            <>
-              <div className="prod-title">
-                <div className="eyebrow">{spec.category}</div>
-                <h1>{spec.name}</h1>
-                <small className="muted">
-                  {spec.sku} · {spec.widthCm} cm wide · {session.w}×{session.h}px photo
-                </small>
-              </div>
-              <GroupsPanel
-                spec={spec}
-                selection={st.selection}
-                materials={matMap}
-                matches={matches}
-                active={activeGroup}
-                onSelect={setActiveGroup}
-                onClear={(g) => pick(g, undefined)}
-                onPreset={(sel) => {
-                  patchState((s) => ({ ...s, selection: { ...sel } }));
-                  setFidelity(null);
-                  setView("result");
-                }}
-                onReference={() => {
-                  patchState((s) => ({ ...s, selection: referenceSelection() }));
-                  setView("split");
-                }}
-                onResetAll={() => {
-                  patchState(() => EMPTY);
-                  session.spec.parts.forEach((p, i) => session.setSmoothing(i, p.tuning?.smoothing ?? DEFAULT_TUNING[p.kind].smoothing));
-                  setVersion((v) => v + 1);
-                  setFidelity(null);
-                }}
-              />
-              {group && (
-                <TuningPanel
-                  spec={spec}
-                  groupId={group.id}
-                  material={st.selection[group.id] ? matMap.get(st.selection[group.id]!) : undefined}
-                  tuning={st.tuning}
-                  mapping={st.mapping}
-                  onTuning={applyTuning}
-                  onMapping={applyMapping}
-                  onReset={resetTuning}
-                />
-              )}
-              <div className="left-foot">
-                <button className="btn ghost wide" onClick={() => enterSetup()}>
-                  ✎ Edit parts & masks
-                </button>
-                {spec.notes && <p className="muted small">{spec.notes}</p>}
-              </div>
-            </>
-          )}
-          {mode === "setup" && draft && session && (
+        {mode === "setup" && draft && session && (
+          <aside className="left">
             <SetupPanel
               spec={draft}
               active={activePart}
@@ -459,7 +414,10 @@ export default function App() {
               onAuto={autoDetect}
               onAddPart={addPart}
               onDeletePart={deletePart}
-              onSave={saveDraft}
+              onSave={async () => {
+                await saveDraft();
+                leaveSetup();
+              }}
               onDownloadSpec={() => download(new Blob([JSON.stringify(session.toSpecWithBitmaps(), null, 1)], { type: "application/json" }), `${draft.id}.product.json`)}
               onDone={leaveSetup}
               onDeleteProduct={removeProduct}
@@ -469,38 +427,32 @@ export default function App() {
                 return b ? [b.x0, b.y0, b.x1, b.y1] : null;
               }}
             />
-          )}
-        </aside>
+          </aside>
+        )}
 
         <section className="center">
-          <div className="viewbar">
-            <div className="seg" role="tablist" aria-label="View mode">
-              {(
-                [
-                  ["result", "Customised"],
-                  ["original", "Original"],
-                  ["split", "Split"],
-                  ["side", "Side by side"],
-                ] as [ViewMode, string][]
-              ).map(([v, l]) => (
-                <button key={v} className={view === v ? "on" : ""} onClick={() => setView(v)} disabled={mode === "setup" && v !== "result"}>
-                  {l}
+          {mode === "configure" && (
+            <div className="viewbar">
+              <div className="prod-title">
+                <h1>{spec?.name}</h1>
+                <small className="muted">Tap a part of the product, then pick a finish.</small>
+              </div>
+              <div className="more">
+                <button className="btn ghost" onClick={() => setMoreOpen((o) => !o)} aria-expanded={moreOpen} data-testid="more">
+                  More ▾
                 </button>
-              ))}
-              {mode === "configure" && !!spec?.parts.length && (
-                <button className={view === "diff" ? "on" : ""} onClick={runFidelity} title="Render the closest catalog finishes and measure the difference against the photo">
-                  Fidelity test
-                </button>
-              )}
+                {moreOpen && (
+                  <div className="menu" onClick={() => setMoreOpen(false)}>
+                    <button onClick={() => setView(view === "side" ? "result" : "side")}>{view === "side" ? "Single view" : "Before / after side by side"}</button>
+                    <button onClick={() => setZoom(zoom === 1 ? 2 : 1)}>{zoom === 1 ? "Zoom in 2×" : "Fit to screen"}</button>
+                    <button onClick={() => setTuneOpen((o) => !o)}>{tuneOpen ? "Hide fine-tuning" : "Fine-tune the selected part"}</button>
+                    <button onClick={runFidelity}>Accuracy check</button>
+                    <button onClick={() => enterSetup()}>Edit parts of this product</button>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="seg zoom">
-              {[1, 2, 4].map((z) => (
-                <button key={z} className={zoom === z ? "on" : ""} onClick={() => setZoom(z)}>
-                  {z === 1 ? "Fit" : `${z}×`}
-                </button>
-              ))}
-            </div>
-          </div>
+          )}
           {session && (
             <Stage
               session={session}
@@ -508,7 +460,7 @@ export default function App() {
               items={items}
               view={view}
               zoom={zoom}
-              highlightGroup={mode === "configure" ? activeGroup : null}
+              highlightGroup={null}
               hoverPart={hoverPart}
               onHoverPart={setHoverPart}
               onPickPart={(i) => {
@@ -527,7 +479,7 @@ export default function App() {
                       tolerance: tools.tolerance,
                       smoothing: tools.smoothing,
                       ignoreBackground: tools.ignoreBackground,
-                      onLabels: (labels, changed) => updateDraft(draft, labels, changed),
+                      onLabels: (labels, changedParts) => updateDraft(draft, labels, changedParts),
                       quad: draft.parts[activePart]?.mapping.mode === "perspective" ? (draft.parts[activePart].mapping as Extract<Mapping, { mode: "perspective" }>).quad : null,
                       onQuad: (q) => {
                         const pt = draft.parts[activePart];
@@ -541,28 +493,24 @@ export default function App() {
           )}
           {loading && <div className="loading">Preparing product…</div>}
           {hoverPart >= 0 && session && mode === "configure" && (
-            <div className="hover-tag">
-              {session.spec.groups.find((g) => g.id === session.spec.parts[hoverPart]?.groupId)?.name} · click to customise
-            </div>
+            <div className="hover-tag">{session.spec.groups.find((g) => g.id === session.spec.parts[hoverPart]?.groupId)?.name}</div>
           )}
           {fidelity && view === "diff" && (
             <div className="fidelity-card" data-testid="fidelity">
               <div className="row between">
-                <b>Fidelity vs. original photo</b>
+                <b>Accuracy check</b>
                 <button className="icon-btn" onClick={() => setView("result")} aria-label="Close">
                   ×
                 </button>
               </div>
-              <p className="muted small">
-                Every part is re-rendered with the catalog finish whose colour is closest to the photo, then compared with the photo pixel by pixel. Heat map: green ΔE ≤ 3 · yellow ~7 · red ≥ 15.
-              </p>
+              <p className="muted small">Each part is re-rendered with the catalog finish closest to the photo and compared with the photo. Green = close, red = different.</p>
               <table>
                 <thead>
                   <tr>
                     <th>Part</th>
-                    <th>Match</th>
-                    <th className="num">Colour ΔE</th>
-                    <th className="num" title="Correlation of shading/shape between render and photo (1.00 = identical lighting)">Lighting</th>
+                    <th>Finish</th>
+                    <th className="num" title="Colour difference (ΔE)">Colour</th>
+                    <th className="num" title="How well shape, shadows and highlights are kept (1.00 = identical)">Shape &amp; light</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -576,32 +524,98 @@ export default function App() {
                   ))}
                 </tbody>
               </table>
-              <p className="small">
-                Mean ΔE <b>{fidelity.overall.toFixed(1)}</b>. Colour ΔE also contains the real difference between swatch and photographed finish (and different grain); the lighting
-                score isolates how well shape, shadows and highlights survive the swap.
-              </p>
             </div>
           )}
-          {mode === "configure" && record && (
-            <footer className="summary">
-              <div className="codes-inline" data-testid="config-code">
-                {record.selections.map((s) => (
-                  <span key={s.groupId} className={`code-chip ${s.code ? "" : "muted"}`} onClick={() => setActiveGroup(s.groupId)}>
-                    <small>{s.groupName}</small>
-                    <b>{s.code ?? "Original"}</b>
-                  </span>
-                ))}
-              </div>
-              <button className="btn primary" onClick={() => setExportOpen(true)} disabled={!session} data-testid="open-export">
-                {unconfigured ? "Export image" : "Export configured image"}
+          {mode === "configure" && session && (
+            <footer className="actionbar">
+              <button
+                className="btn"
+                onPointerDown={() => setView("original")}
+                onPointerUp={() => setView("result")}
+                onPointerLeave={() => view === "original" && setView("result")}
+                onKeyDown={(e) => e.key === " " && setView("original")}
+                onKeyUp={() => setView("result")}
+                disabled={!changed}
+                title="Press and hold to see the original photo"
+              >
+                ◐ Hold to compare
+              </button>
+              <button
+                className="btn ghost"
+                disabled={!changed}
+                onClick={() => {
+                  patchState(() => EMPTY);
+                  session.spec.parts.forEach((p, i) => session.setSmoothing(i, p.tuning?.smoothing ?? DEFAULT_TUNING[p.kind].smoothing));
+                  setVersion((v) => v + 1);
+                  setFidelity(null);
+                  setView("result");
+                }}
+              >
+                Reset
+              </button>
+              <span className="spacer" />
+              <button className="btn primary big" onClick={() => setExportOpen(true)} data-testid="open-export">
+                Download image
               </button>
             </footer>
           )}
         </section>
 
-        {mode === "configure" && (
+        {mode === "configure" && spec && (
           <aside className="right">
+            <div className="step-head">
+              <span className="num">1</span> Choose a part
+            </div>
+            <div className="part-tabs" role="tablist">
+              {spec.groups.map((g) => {
+                const m = st.selection[g.id] ? matMap.get(st.selection[g.id]!) : undefined;
+                return (
+                  <button key={g.id} role="tab" aria-selected={g.id === activeGroup} className={`part-tab ${g.id === activeGroup ? "on" : ""}`} onClick={() => setActiveGroup(g.id)} data-group={g.id}>
+                    <span className="chip" style={m ? { backgroundImage: `url(${m.thumb})`, backgroundColor: m.avgColor } : undefined} />
+                    <span className="meta">
+                      <b>{g.name}</b>
+                      <small>{m ? `${m.code} · ${m.name}` : "Original"}</small>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {tuneOpen && group && (
+              <TuningPanel
+                spec={spec}
+                groupId={group.id}
+                material={selectedMat}
+                tuning={st.tuning}
+                mapping={st.mapping}
+                onTuning={applyTuning}
+                onMapping={applyMapping}
+                onReset={resetTuning}
+              />
+            )}
+            <div className="step-head">
+              <span className="num">2</span> Choose a finish{group ? ` for ${group.name.toLowerCase()}` : ""}
+            </div>
             <Library materials={materials} group={group} selected={group ? st.selection[group.id] : undefined} onPick={(id) => group && pick(group.id, id)} onHover={setPreview} />
+            {!!spec.presets?.length && (
+              <div className="ideas">
+                <div className="eyebrow">Suggested looks</div>
+                <div className="presets">
+                  {spec.presets.map((pr) => (
+                    <button
+                      key={pr.name}
+                      className="pill"
+                      onClick={() => {
+                        patchState((s) => ({ ...s, selection: { ...pr.selection } }));
+                        setFidelity(null);
+                        setView("result");
+                      }}
+                    >
+                      {pr.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </aside>
         )}
       </main>
@@ -613,4 +627,3 @@ export default function App() {
     </div>
   );
 }
-

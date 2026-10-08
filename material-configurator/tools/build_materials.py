@@ -35,7 +35,7 @@ CROP = (60, 120, 531, 591)
 
 # Physical size (cm) that one texture tile represents. Calibrated by eye against the
 # swatch scans (thread pitch for fabric, pore/grain size for leather, figure for wood).
-TILE_CM = {"fabric": 7.0, "leather-natural": 22.0, "leather-artificial": 22.0, "wood": 55.0, "metal": 14.0}
+TILE_CM = {"fabric": 10.0, "leather-natural": 22.0, "leather-artificial": 22.0, "wood": 55.0, "metal": 14.0}
 
 CATEGORY_LABEL = {
     "fabric": "Fabric",
