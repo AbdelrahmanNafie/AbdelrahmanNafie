@@ -160,7 +160,25 @@ export function canvasToBlob(c: HTMLCanvasElement, type: string, q?: number): Pr
   return new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("encode failed"))), type, q));
 }
 
-export function download(blob: Blob, name: string) {
+type ClaudeHost = { use?: (name: string) => Promise<{ save: (r: { filename: string; data: Blob }) => Promise<unknown> } | null> };
+
+/**
+ * Save a file. Inside a claude.ai Artifact the frame cannot download directly, so the
+ * platform's `downloads` capability is used (viewer confirms); elsewhere a normal link click.
+ */
+export async function download(blob: Blob, name: string) {
+  const host = (window as unknown as { claude?: ClaudeHost }).claude;
+  if (host?.use) {
+    try {
+      const d = await host.use("downloads");
+      if (d) {
+        await d.save({ filename: name, data: blob });
+        return;
+      }
+    } catch {
+      return; // declined or unavailable: the viewer already saw the platform prompt
+    }
+  }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = name;
