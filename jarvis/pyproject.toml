@@ -1,0 +1,26 @@
+[project]
+name = "jarvis"
+version = "0.1.0"
+description = "Voice assistant prototype: Gemini ears, Claude brain, policy-gated local hands"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp>=2.3,<3",
+    "google-genai>=2.29",
+]
+
+[project.optional-dependencies]
+mic = ["sounddevice>=0.5", "numpy>=1.26"]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["jarvis"]
+
+[tool.setuptools.package-data]
+jarvis = ["*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
