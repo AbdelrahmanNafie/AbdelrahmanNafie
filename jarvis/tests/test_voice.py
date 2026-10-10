@@ -146,3 +146,10 @@ def test_wake_loop_stops_on_enter_and_reports_progress():
 def test_meter_warns_when_mic_is_silent(capsys):
     voice.meter(10, 0.0, 0.4)
     assert "mic silent" in capsys.readouterr().out
+
+
+def test_meter_line_erases_previous_longer_line(capsys):
+    voice.meter(10, 0.0, 0.4)      # long line with the "mic silent?" hint
+    voice.meter(6000, 0.2, 0.4)    # loud: no hint
+    last = capsys.readouterr().out.split("\r")[-1]
+    assert "mic silent" not in last and len(last) >= voice._METER_WIDTH

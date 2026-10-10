@@ -159,12 +159,16 @@ def wake_loop(chunks, score_of, threshold: float, *, should_stop=None, on_tick=N
     return None
 
 
+_METER_WIDTH = 100
+
+
 def meter(loudest: float, best: float, threshold: float) -> None:
     """One self-updating line: mic volume bar + wake word score."""
     bars = min(20, int(loudest / 300))
     hint = "  (mic silent? check Windows sound input)" if loudest < 60 else ""
-    print(f"\r   mic {'█' * bars}{'·' * (20 - bars)}  wake score {best:.2f}/{threshold:.2f}"
-          f"  — or press Enter{hint}   ", end="", flush=True)
+    line = f"   mic {'█' * bars}{'·' * (20 - bars)}  wake score {best:.2f}/{threshold:.2f}  — or press Enter{hint}"
+    # Pad to a fixed width so a shorter line fully overwrites the previous one.
+    print("\r" + line.ljust(_METER_WIDTH), end="", flush=True)
 
 
 def enter_pressed() -> bool:
