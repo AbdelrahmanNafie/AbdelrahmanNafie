@@ -1,13 +1,13 @@
-"""Jarvis mode: always listening. Say "Hey Jarvis", speak, and hear the answer.
+"""Jarvis mode: say "Hey Jarvis" once, then just talk.
 
-  python -m jarvis.assistant                   # wake word "Hey Jarvis"
+  python -m jarvis.assistant                   # wake word, then conversation
   python -m jarvis.assistant --push-to-talk    # press Enter instead of the wake word
+  python -m jarvis.assistant --to claude       # send every request to Claude
   python -m jarvis.assistant --to print        # only repeat what it understood (no actions)
-  python -m jarvis.assistant --to claude       # send every request to Claude (default: Gemini
-                                               # does light tasks itself, hands heavy ones to Claude)
   python -m jarvis.assistant --voice gemini    # natural Gemini voice (default: Windows voice)
 
-Stop with Ctrl+C.
+After each answer Jarvis keeps listening for a follow-up (8 s by default) — no
+wake word needed. Stay quiet and it goes back to sleep. Stop with Ctrl+C.
 """
 
 from __future__ import annotations
@@ -26,38 +26,43 @@ from .store import Store
 
 def handle_one(settings: config.Settings, store: Store, speaker: voice.Speaker,
                record: Callable[[], bytes | None], *, to: str, new_session: bool,
-               quick: QuickBrain | None = None) -> None:
-    """One request: listen → understand → (Claude) → speak."""
+               quick: QuickBrain | None = None) -> bool:
+    """One request: listen → understand + act → speak. Returns False if nobody spoke."""
     audio = record()
     if audio is None:
-        speaker.say("I didn't hear anything.")
-        return
+        return False
+    started = time.monotonic()
+
+    if to == "quick" and quick is not None:
+        print("💭 Thinking…", flush=True)
+        store.log("ears", "heard", f"audio input ({len(audio) // 1024} KB)")
+        try:
+            said, answer = quick.handle(audio=audio)
+        except QuickError as exc:
+            print(f"❌ {exc}")
+            speaker.say("Sorry, Gemini isn't answering right now. Check the window for details.")
+            return True
+        if said:
+            print(f"👂 {said}")
+            store.log("ears", "understood", said)
+        store.log("brain", "reply", answer)
+        print(f"⚡ {answer}   ⏱ {time.monotonic() - started:.1f}s")
+        speaker.say(answer)
+        return True
+
     try:
         print("💭 Understanding…", flush=True)
         heard = hear(settings, store, audio=audio)
     except EarsError as exc:
         print(f"❌ {exc}")
         speaker.say("Sorry, I couldn't understand that because of a connection problem.")
-        return
+        return True
     if heard is None:
         speaker.say("Sorry, I didn't catch that.")
-        return
+        return True
     if to == "print":
         speaker.say(f"I heard: {heard.english}")
-        return
-
-    started = time.monotonic()
-    if to == "quick" and quick is not None:
-        try:
-            answer = quick.handle(heard)
-        except QuickError as exc:
-            print(f"❌ {exc}")
-            speaker.say("Sorry, something went wrong. Check the window for details.")
-            return
-        store.log("brain", "reply", answer)
-        print(f"⚡ {answer}   ⏱ {time.monotonic() - started:.1f}s")
-        speaker.say(answer)
-        return
+        return True
 
     speaker.say("On it.")
     try:
@@ -65,9 +70,10 @@ def handle_one(settings: config.Settings, store: Store, speaker: voice.Speaker,
     except BrainError as exc:
         print(f"❌ {exc}")
         speaker.say("Sorry, Claude is not available right now. Check the window for details.")
-        return
+        return True
     print(f"🧠 {answer}   ⏱ {time.monotonic() - started:.1f}s")
     speaker.say(answer)
+    return True
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -79,6 +85,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--voice", choices=["windows", "gemini", "off"], default=voice.default_voice())
     parser.add_argument("--sensitivity", type=float, default=0.4,
                         help="wake word threshold 0-1 (lower = triggers more easily)")
+    parser.add_argument("--follow-up", type=float, default=8.0, metavar="SECONDS",
+                        help="keep listening this long after each answer (0 = wake word every time)")
     args = parser.parse_args(argv)
 
     settings = config.load()
@@ -92,7 +100,13 @@ def main(argv: list[str] | None = None) -> int:
                   flush=True)
             speaker.say("I need your approval. Press Y to allow, or N to cancel.")
 
-        gateway = Gateway(settings, store, on_approval_needed=announce, approval_key=voice.yes_no_pressed)
+        def remind(message: str) -> None:  # runs on a timer thread
+            print(f"\n⏰ Reminder: {message}", flush=True)
+            voice.chime("start")
+            speaker.say(f"Reminder: {message}", from_other_thread=True)
+
+        gateway = Gateway(settings, store, on_approval_needed=announce, approval_key=voice.yes_no_pressed,
+                          notify=remind)
 
         def claude(task: str) -> str:
             print("   🧠 Handing this to Claude…", flush=True)
@@ -114,13 +128,18 @@ def main(argv: list[str] | None = None) -> int:
             score = wake.wait(should_stop=voice.enter_pressed)
             print("✨ Heard the wake word" + (f" ({score:.2f})" if score is not None else " (Enter)"), flush=True)
 
-    def record() -> bytes | None:
+    def record(follow_up: bool) -> bytes | None:
         def ready() -> None:
-            print("🎙  Speak now (high beep). I stop 2 s after you finish (low beep).", flush=True)
-            voice.chime("start")
+            if follow_up:
+                print(f"👂 Listening for a follow-up ({args.follow_up:g} s)… stay quiet to end.", flush=True)
+            else:
+                print("🎙  Speak now (beep). I stop when you pause.", flush=True)
+                voice.chime("start")
 
-        audio = voice.record_until_silence(on_start=ready)
-        voice.chime("stop")
+        audio = voice.record_until_silence(on_start=ready,
+                                           no_speech_s=args.follow_up if follow_up else 8.0)
+        if audio is not None:
+            voice.chime("stop")
         return audio
 
     print("Jarvis is ready. Stop with Ctrl+C.")
@@ -129,11 +148,23 @@ def main(argv: list[str] | None = None) -> int:
     try:
         while True:
             trigger()
-            try:
-                handle_one(settings, store, speaker, record, to=args.to, new_session=first, quick=quick)
-                first = False
-            except Exception as exc:  # noqa: BLE001 — keep the assistant alive
-                print(f"❌ Unexpected error: {type(exc).__name__}: {exc}")
+            follow_up = False
+            # Conversation: keep going without the wake word until the user goes quiet.
+            while True:
+                try:
+                    spoke = handle_one(settings, store, speaker, lambda: record(follow_up), to=args.to,
+                                       new_session=first, quick=quick)
+                    first = False
+                except Exception as exc:  # noqa: BLE001 — keep the assistant alive
+                    print(f"❌ Unexpected error: {type(exc).__name__}: {exc}")
+                    spoke = False
+                if not spoke:
+                    if not follow_up:
+                        speaker.say("I didn't hear anything.")
+                    break
+                if args.follow_up <= 0:
+                    break
+                follow_up = True
     except KeyboardInterrupt:
         print("\nGoodbye.")
     return 0

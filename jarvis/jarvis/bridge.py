@@ -189,7 +189,7 @@ def main(argv: list[str] | None = None) -> int:
         claude = lambda task: ask_brain(settings, store, Heard(original=task, language="english",  # noqa: E731
                                                                 english=task), new_session=False)
         try:
-            answer = QuickBrain(settings, gateway, ask_claude=claude).handle(heard)
+            _, answer = QuickBrain(settings, gateway, ask_claude=claude).handle(heard)
         except (QuickError, EarsError) as exc:
             print(f"❌ {exc}")
             return 1

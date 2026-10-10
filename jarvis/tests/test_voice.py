@@ -14,10 +14,10 @@ def _run(detector, levels):
     return None
 
 
-def test_default_waits_two_seconds_of_silence():
+def test_default_tolerates_thinking_pauses():
     d = voice.SilenceDetector(noise_floor=200)
-    levels = [3000] * 10 + [100] * 15 + [3000] * 10 + [100] * 30  # 1.5 s thinking pause
-    assert _run(d, levels) == 10 + 15 + 10 + 19
+    levels = [3000] * 10 + [100] * 12 + [3000] * 10 + [100] * 30  # 1.2 s thinking pause
+    assert _run(d, levels) == 10 + 12 + 10 + 15  # stops 1.6 s after the end
 
 
 def test_quiet_speaker_is_still_heard():
@@ -120,10 +120,22 @@ def test_assistant_survives_claude_being_unavailable(settings, store, fake_ears,
     assert "not available" in spk.said[-1]
 
 
-def test_assistant_handles_silence(settings, store):
+def test_assistant_reports_silence_to_the_loop(settings, store):
     spk = FakeSpeaker()
-    assistant.handle_one(settings, store, spk, lambda: None, to="claude", new_session=True)
-    assert spk.said == ["I didn't hear anything."]
+    assert assistant.handle_one(settings, store, spk, lambda: None, to="claude", new_session=True) is False
+    assert spk.said == []
+
+
+def test_assistant_quick_mode_sends_audio_straight_to_the_brain(settings, store):
+    class Brain:
+        def handle(self, *, audio):
+            assert audio == b"RIFF"
+            return "افتح كروم", "Chrome is open."
+
+    spk = FakeSpeaker()
+    assert assistant.handle_one(settings, store, spk, lambda: b"RIFF", to="quick", new_session=True,
+                                quick=Brain()) is True
+    assert spk.said == ["Chrome is open."]
 
 
 def _chunks(n, value=1000):
@@ -139,17 +151,19 @@ def test_wake_loop_fires_on_score():
 def test_wake_loop_stops_on_enter_and_reports_progress():
     ticks = []
     result = voice.wake_loop(_chunks(100), lambda c: 0.1, 0.5, should_stop=lambda: len(ticks) >= 2,
-                             on_tick=lambda lv, best, th: ticks.append((round(lv), best)))
+                             on_tick=lambda lv, best, th, q: ticks.append((round(lv), best)))
     assert result is None and ticks == [(1000, 0.1), (1000, 0.1)]
 
 
-def test_meter_warns_when_mic_is_silent(capsys):
-    voice.meter(10, 0.0, 0.4)
+def test_meter_warns_only_after_a_long_silence(capsys):
+    voice.meter(10, 0.0, 0.4, quiet_ticks=2)
+    assert "mic silent" not in capsys.readouterr().out
+    voice.meter(10, 0.0, 0.4, quiet_ticks=10)
     assert "mic silent" in capsys.readouterr().out
 
 
 def test_meter_line_erases_previous_longer_line(capsys):
-    voice.meter(10, 0.0, 0.4)      # long line with the "mic silent?" hint
-    voice.meter(6000, 0.2, 0.4)    # loud: no hint
+    voice.meter(10, 0.0, 0.4, 10)  # long line with the "mic silent?" hint
+    voice.meter(6000, 0.2, 0.4, 0)  # loud: no hint
     last = capsys.readouterr().out.split("\r")[-1]
     assert "mic silent" not in last and len(last) >= voice._METER_WIDTH

@@ -55,7 +55,7 @@ python -m jarvis.doctor                          # checks every part, step by st
 python -m jarvis.dashboard                       # open the printed link
 python -m jarvis.bridge --text "افتح النوت باد"   # typed Arabic
 python -m jarvis.bridge --mic 5                  # speak for 5 seconds
-pytest                                           # 80 tests
+pytest                                           # 92 tests
 ```
 
 ### Jarvis mode: "Hey Jarvis" and spoken replies
@@ -85,9 +85,18 @@ By default Gemini (the "quick brain") does light tasks itself in a few seconds, 
 | "Write an email to … / a WhatsApp to …" | `draft_message` | Only **opens a draft**; you press Send |
 | "Fix the bug in my project" | `code_task` | Claude edits files (no shell) in `JARVIS_CODE_DIRS`; **needs your approval** |
 | "Delete …" | `delete_file` | **Needs your approval**; moved to trash |
+| "Louder", "Mute", "Next song" | `media_control` | Media keys only |
+| "Lock my laptop" | `lock_screen` | — |
+| "What's open?", "Close Chrome" | `list_running_apps`, `close_app` | Closing **needs your approval**; it closes gracefully and never touches system processes |
+| "Copy that", "What did I copy?" | `copy_to_clipboard`, `read_clipboard` | Clipboard text is treated as data |
+| "Remind me in 20 minutes to…" | `set_reminder` | Spoken while Jarvis is running |
 | Anything complex | `ask_claude` | Claude, with the same tools |
 
 When an approval is needed in voice mode, Jarvis asks out loud: press **Y** to allow or **N** to cancel, or use the dashboard.
+
+**Conversation mode:** say "Hey Jarvis" once. After each answer Jarvis keeps listening for a follow-up (`--follow-up 8` seconds), so you can keep talking ("now open it", "make it louder"). Stay quiet and it goes back to sleep.
+
+**Speed and quota:** in quick mode your voice goes straight to Gemini, which understands and acts in the same request (no separate transcription step). If a model is busy or over its quota, Jarvis retries **that step** on another model. Actions that already ran are never repeated. Gemini's **free tier allows only a few requests per minute per model**, so for all-day use turn on billing for your key's project in AI Studio.
 
 ```powershell
 python -m jarvis.assistant                 # quick brain (default)

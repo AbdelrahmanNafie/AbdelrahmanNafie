@@ -189,3 +189,76 @@ def test_fetch_page_network_failure_is_a_clean_error(settings, store, monkeypatc
 
     r = Gateway(settings, store, http_client=Down()).request("fetch_page", {"url": "https://example.com"})
     assert r["status"] == "error" and "couldn't load" in r["error"]
+
+
+# ------------------------------------------------------- system control
+def test_volume_and_media_keys(settings, store):
+    from jarvis.gateway import Gateway
+    pressed = []
+    gw = Gateway(settings, store, press=pressed.append)
+    assert gw.request("media_key", {"action": "volume_up", "times": 5})["status"] == "ok"
+    assert gw.request("media_key", {"action": "play_pause", "times": 9})["status"] == "ok"
+    assert pressed == [0xAF] * 5 + [0xB3]
+    assert gw.request("media_key", {"action": "shutdown"})["status"] == "error"
+
+
+def test_lock_screen(settings, store):
+    from jarvis.gateway import Gateway
+    locked = []
+    assert Gateway(settings, store, lock=lambda: locked.append(1)).request("lock_screen", {})["status"] == "ok"
+    assert locked == [1]
+
+
+RUNNING = '[{"ProcessName":"chrome","MainWindowTitle":"YouTube - Google Chrome"},' \
+          '{"ProcessName":"Code","MainWindowTitle":"jarvis - Visual Studio Code"},' \
+          '{"ProcessName":"explorer","MainWindowTitle":"Downloads"}]'
+
+
+def test_list_and_close_apps_with_approval(settings, store):
+    from jarvis.gateway import Gateway
+    killed = []
+    gw = Gateway(settings, store, shell=lambda script, stdin=None: RUNNING, kill=killed.append,
+                 approval_key=lambda: True, poll_s=0.01)
+    apps = gw.request("list_running_apps", {})["result"]["apps"]
+    assert [a["process"] for a in apps] == ["chrome", "Code", "explorer"]
+    assert gw.request("close_app", {"name": "chrome"})["status"] == "ok"
+    assert gw.request("close_app", {"name": "vs code"})["status"] == "ok"
+    assert gw.request("close_app", {"name": "downloads"})["status"] == "error"  # explorer is protected
+    assert killed == ["chrome", "Code"]
+
+
+def test_close_app_waits_for_approval(settings, store):
+    from jarvis.gateway import Gateway
+    killed = []
+    gw = Gateway(settings, store, shell=lambda script, stdin=None: RUNNING, kill=killed.append,
+                 approval_key=lambda: False, poll_s=0.01)
+    assert gw.request("close_app", {"name": "chrome"})["status"] == "rejected" and killed == []
+
+
+def test_clipboard(settings, store):
+    from jarvis.gateway import Gateway
+    calls = []
+
+    def shell(script, stdin=None):
+        calls.append(stdin)
+        return "copied text"
+    gw = Gateway(settings, store, shell=shell)
+    assert gw.request("clipboard_read", {})["result"]["untrusted_clipboard_text"] == "copied text"
+    gw.request("clipboard_write", {"text": "مرحبا"})
+    assert calls[-1] == "مرحبا"  # sent on stdin, not in the command line
+
+
+def test_reminder_fires(settings, store):
+    import time
+
+    from jarvis.gateway import Gateway
+    heard = []
+    r = Gateway(settings, store, notify=heard.append).request("set_reminder", {"minutes": 0.001, "message": "tea"})
+    assert r["status"] == "ok"
+    time.sleep(0.3)
+    assert heard == ["tea"]
+
+
+def test_system_info_has_time():
+    from jarvis import config
+    assert "local_time" in actions.system_info(config.load())

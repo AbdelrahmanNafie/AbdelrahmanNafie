@@ -42,7 +42,7 @@ class SilenceDetector:
     """Decides when an utterance is over, from a stream of loudness values (one per chunk)."""
 
     noise_floor: float = 300.0
-    silence_s: float = 2.0  # this much quiet after speech ends the recording (natural pauses are shorter)
+    silence_s: float = 1.6  # this much quiet after speech ends the recording (natural pauses are shorter)
     max_s: float = 30.0
     no_speech_s: float = 8.0  # give up if nothing is said at all
     _speech_started: bool = False
@@ -82,7 +82,7 @@ def to_wav(pcm: bytes, rate: int = RATE) -> bytes:
     return buf.getvalue()
 
 
-def record_until_silence(*, max_s: float = 30.0, on_start=None) -> bytes | None:
+def record_until_silence(*, max_s: float = 30.0, no_speech_s: float = 8.0, on_start=None) -> bytes | None:
     """Record one utterance. Returns WAV bytes, or None if nobody spoke."""
     import numpy as np
 
@@ -91,7 +91,8 @@ def record_until_silence(*, max_s: float = 30.0, on_start=None) -> bytes | None:
     with sd.InputStream(samplerate=RATE, channels=1, dtype="int16", blocksize=CHUNK) as stream:
         # Measure the room's background noise for ~0.3 s so the threshold adapts.
         calib = [stream.read(CHUNK)[0][:, 0] for _ in range(4)]
-        detector = SilenceDetector(noise_floor=float(np.median([level(c) for c in calib])), max_s=max_s)
+        detector = SilenceDetector(noise_floor=float(np.median([level(c) for c in calib])), max_s=max_s,
+                                   no_speech_s=no_speech_s)
         if on_start:
             on_start()  # e.g. the "speak now" beep: played only once the mic is really ready
             for _ in range(3):  # drop ~0.24 s so the beep itself isn't taken for your voice
@@ -141,6 +142,7 @@ def wake_loop(chunks, score_of, threshold: float, *, should_stop=None, on_tick=N
     so the user can see the mic is alive and how close the wake word came.
     """
     loudest = best = 0.0
+    quiet_ticks = 0
     for i, chunk in enumerate(chunks, 1):
         score = float(score_of(chunk))
         if score >= threshold:
@@ -149,8 +151,9 @@ def wake_loop(chunks, score_of, threshold: float, *, should_stop=None, on_tick=N
             return score
         loudest, best = max(loudest, level(chunk)), max(best, score)
         if i % tick_every == 0:
+            quiet_ticks = quiet_ticks + 1 if loudest < 60 else 0
             if on_tick:
-                on_tick(loudest, best, threshold)
+                on_tick(loudest, best, threshold, quiet_ticks)
             loudest = best = 0.0
             if should_stop and should_stop():
                 if on_tick:
@@ -162,10 +165,10 @@ def wake_loop(chunks, score_of, threshold: float, *, should_stop=None, on_tick=N
 _METER_WIDTH = 100
 
 
-def meter(loudest: float, best: float, threshold: float) -> None:
+def meter(loudest: float, best: float, threshold: float, quiet_ticks: int = 99) -> None:
     """One self-updating line: mic volume bar + wake word score."""
     bars = min(20, int(loudest / 300))
-    hint = "  (mic silent? check Windows sound input)" if loudest < 60 else ""
+    hint = "  (mic silent? check Windows sound input)" if quiet_ticks >= 10 else ""  # ~5 s of silence
     line = f"   mic {'█' * bars}{'·' * (20 - bars)}  wake score {best:.2f}/{threshold:.2f}  — or press Enter{hint}"
     # Pad to a fixed width so a shorter line fully overwrites the previous one.
     print("\r" + line.ljust(_METER_WIDTH), end="", flush=True)
@@ -229,9 +232,16 @@ class Speaker:
         self.client = client
         self.runner = runner
 
-    def say(self, text: str) -> None:
+    def say(self, text: str, *, from_other_thread: bool = False) -> None:
         text = text.strip()
         if not text or self.voice == "off":
+            return
+        if from_other_thread:  # e.g. a reminder timer: avoid the main thread's COM voice
+            if sys.platform == "win32":
+                self.runner(["powershell", "-NoProfile", "-NonInteractive", "-Command", _WINDOWS_SAY],
+                            input=text, text=True, encoding="utf-8", capture_output=True)
+            else:
+                print(f"🔊 {text}")
             return
         if self.voice == "gemini":
             try:

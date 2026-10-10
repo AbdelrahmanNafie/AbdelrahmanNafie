@@ -47,7 +47,7 @@ def build_server(gateway: Gateway | None = None) -> MCPServer:
     gw = gateway
     server = MCPServer("jarvis", instructions=INSTRUCTIONS)
 
-    for tool in toolset.build(gw):
+    for tool in toolset.build(gw):  # no reminders: this process ends when Claude finishes
         server.add_tool(_in_thread(tool), name=tool.__name__, description=tool.__doc__)
 
     @server.tool(description="Send the final answer to the user (shown on the dashboard and spoken). Call once at the end.")

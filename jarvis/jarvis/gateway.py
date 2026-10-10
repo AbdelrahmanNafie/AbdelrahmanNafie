@@ -17,14 +17,16 @@ from .store import Store
 
 class Gateway:
     def __init__(self, settings: Settings, store: Store, *, launcher: actions.Launcher | None = None,
-                 opener: actions.Opener | None = None, http_client=None, poll_s: float = 0.5,
+                 opener: actions.Opener | None = None, http_client=None, press=None, lock=None,
+                 shell=None, kill=None, notify=None, poll_s: float = 0.5,
                  on_approval_needed: Callable[[str], None] | None = None,
                  approval_key: Callable[[], bool | None] | None = None):
         self.settings = settings
         self.store = store
         # Side effects that tests (or other front-ends) can replace.
         self.effects = {k: v for k, v in
-                        {"launcher": launcher, "opener": opener, "client": http_client}.items() if v}
+                        {"launcher": launcher, "opener": opener, "client": http_client, "press": press,
+                         "lock": lock, "shell": shell, "kill": kill, "notify": notify}.items() if v}
         self.poll_s = poll_s
         # Voice mode: announce the request and accept a Y/N keypress besides the dashboard.
         self.on_approval_needed = on_approval_needed

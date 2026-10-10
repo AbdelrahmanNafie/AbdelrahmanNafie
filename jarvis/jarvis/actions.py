@@ -69,14 +69,33 @@ def read_file(settings: Settings, path: str) -> dict[str, Any]:
             "truncated": target.stat().st_size > MAX_READ_BYTES}
 
 
+def _battery() -> dict[str, Any] | None:
+    if sys.platform != "win32":
+        return None
+    import ctypes
+
+    class _Power(ctypes.Structure):
+        _fields_ = [("ACLineStatus", ctypes.c_byte), ("BatteryFlag", ctypes.c_byte),
+                    ("BatteryLifePercent", ctypes.c_byte), ("SystemStatusFlag", ctypes.c_byte),
+                    ("BatteryLifeTime", ctypes.c_ulong), ("BatteryFullLifeTime", ctypes.c_ulong)]
+
+    status = _Power()
+    if not ctypes.windll.kernel32.GetSystemPowerStatus(ctypes.byref(status)):  # type: ignore[attr-defined]
+        return None
+    pct = status.BatteryLifePercent & 0xFF
+    return {"percent": None if pct == 255 else pct, "plugged_in": status.ACLineStatus == 1}
+
+
 def system_info(settings: Settings) -> dict[str, Any]:
     usage = shutil.disk_usage(settings.home)
     return {
+        "local_time": time.strftime("%A %d %B %Y, %H:%M"),
         "os": f"{platform.system()} {platform.release()}",
         "machine": platform.node(),
         "cpu_count": os.cpu_count(),
         "disk_free_gb": round(usage.free / 1e9, 1),
         "disk_total_gb": round(usage.total / 1e9, 1),
+        "battery": _battery(),
     }
 
 
@@ -391,6 +410,113 @@ def code_task(settings: Settings, folder: str, task: str) -> dict[str, Any]:
     return {"folder": str(target), "claude_summary": str(result.get("result", ""))[:4000]}
 
 
+# --------------------------------------------------------- system control
+_VK = {"volume_up": 0xAF, "volume_down": 0xAE, "mute": 0xAD,
+       "play_pause": 0xB3, "next": 0xB0, "previous": 0xB1}
+_PROTECTED_PROCESSES = {"explorer", "svchost", "winlogon", "csrss", "lsass", "services", "system", "smss",
+                        "wininit", "dwm", "python", "pythonw", "powershell", "conhost"}  # never close these
+
+
+def _press_key(vk: int) -> None:
+    import ctypes
+
+    user32 = ctypes.windll.user32  # type: ignore[attr-defined]
+    user32.keybd_event(vk, 0, 0, 0)
+    user32.keybd_event(vk, 0, 2, 0)  # key up
+
+
+def media_key(settings: Settings, action: str, times: int = 1, *,
+              press: Callable[[int], None] = _press_key) -> dict[str, Any]:
+    vk = _VK.get(action.strip().lower())
+    if vk is None:
+        raise ActionError(f"action must be one of {sorted(_VK)}")
+    times = max(1, min(int(times), 25))  # each volume step is about 2%
+    for _ in range(times if action.startswith("volume") else 1):
+        press(vk)
+    return {"pressed": action, "times": times}
+
+
+def _lock() -> None:
+    import ctypes
+
+    ctypes.windll.user32.LockWorkStation()  # type: ignore[attr-defined]
+
+
+def lock_screen(settings: Settings, *, lock: Callable[[], None] = _lock) -> dict[str, Any]:
+    lock()
+    return {"locked": True}
+
+
+def _powershell(script: str, stdin: str | None = None) -> str:
+    out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                         input=stdin, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                         timeout=20)
+    if out.returncode != 0:
+        raise ActionError(out.stderr.strip()[:300] or "PowerShell command failed")
+    return out.stdout
+
+
+_LIST_WINDOWS = ("Get-Process | Where-Object {$_.MainWindowTitle} | "
+                 "Select-Object ProcessName, MainWindowTitle | ConvertTo-Json -Compress")
+
+
+def list_running_apps(settings: Settings, *, shell: Callable[..., str] = _powershell) -> dict[str, Any]:
+    rows = json.loads(shell(_LIST_WINDOWS) or "[]")
+    rows = rows if isinstance(rows, list) else [rows]
+    return {"apps": [{"process": r.get("ProcessName"), "window": r.get("MainWindowTitle")} for r in rows]}
+
+
+def _taskkill(process: str) -> None:
+    # Graceful close (no /F): the app can still ask to save unsaved work.
+    subprocess.run(["taskkill", "/IM", f"{process}.exe"], capture_output=True, timeout=15)
+
+
+def close_app(settings: Settings, name: str, *, shell: Callable[..., str] = _powershell,
+              kill: Callable[[str], None] = _taskkill) -> dict[str, Any]:
+    running = list_running_apps(settings, shell=shell)["apps"]
+    key = _norm(APP_ALIASES.get(name.strip().lower(), name))
+    matches = sorted({a["process"] for a in running if a["process"] and
+                      (key in _norm(a["process"]) or key in _norm(a["window"] or ""))})
+    if not matches:
+        raise ActionError(f"no open app matches '{name}'")
+    if len(matches) > 1:
+        raise ActionError(f"'{name}' matches several apps: {matches}; be more specific")
+    proc = matches[0]
+    if proc.lower() in _PROTECTED_PROCESSES:
+        raise ActionError(f"'{proc}' is a system process and can't be closed by Jarvis")
+    kill(proc)
+    return {"asked_to_close": proc}
+
+
+def clipboard_read(settings: Settings, *, shell: Callable[..., str] = _powershell) -> dict[str, Any]:
+    text = shell("[Console]::OutputEncoding=[Text.Encoding]::UTF8; Get-Clipboard -Raw")
+    return {"untrusted_clipboard_text": (text or "")[:10_000]}
+
+
+def clipboard_write(settings: Settings, text: str, *, shell: Callable[..., str] = _powershell) -> dict[str, Any]:
+    shell("[Console]::InputEncoding=[Text.Encoding]::UTF8; Set-Clipboard -Value ([Console]::In.ReadToEnd())",
+          stdin=text)
+    return {"copied_chars": len(text)}
+
+
+def _print_notice(message: str) -> None:
+    print(f"\n⏰ Reminder: {message}", flush=True)
+
+
+def set_reminder(settings: Settings, minutes: float, message: str, *,
+                 notify: Callable[[str], None] = _print_notice) -> dict[str, Any]:
+    import threading
+
+    minutes = float(minutes)
+    if not 0 < minutes <= 24 * 60:
+        raise ActionError("minutes must be between 0 and 1440")
+    timer = threading.Timer(minutes * 60, notify, args=[message])
+    timer.daemon = True
+    timer.start()
+    due = time.strftime("%H:%M", time.localtime(time.time() + minutes * 60))
+    return {"reminder_at": due, "message": message, "note": "Kept while Jarvis is running."}
+
+
 REGISTRY: dict[str, Callable[..., dict[str, Any]]] = {
     "list_files": list_files,
     "read_file": read_file,
@@ -405,4 +531,11 @@ REGISTRY: dict[str, Callable[..., dict[str, Any]]] = {
     "open_path": open_path,
     "draft_message": draft_message,
     "code_task": code_task,
+    "media_key": media_key,
+    "lock_screen": lock_screen,
+    "list_running_apps": list_running_apps,
+    "close_app": close_app,
+    "clipboard_read": clipboard_read,
+    "clipboard_write": clipboard_write,
+    "set_reminder": set_reminder,
 }
