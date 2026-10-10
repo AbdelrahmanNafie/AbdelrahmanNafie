@@ -144,9 +144,8 @@ def test_monitor_fires_reminders_and_warns_on_low_battery_once(settings, store):
 # ---------------------------------------------------------------- voice
 def test_split_for_speech():
     assert voice.split_for_speech("Short one.") == ["Short one."]
-    long = "Here's the plan. " + "Then we do a lot more things carefully. " * 6
-    first, rest = voice.split_for_speech(long)
-    assert first == "Here's the plan." and rest.startswith("Then")
+    parts = voice.split_for_speech("Here's the plan. Then we do more things carefully. Ok. Last bit here.")
+    assert parts == ["Here's the plan. Then we do more things carefully. Ok.", "Last bit here."]
     assert voice.split_for_speech("") == []
 
 
@@ -162,7 +161,7 @@ def test_gemini_voice_quota_switches_to_windows_for_a_while(monkeypatch):
     spk = voice.Speaker("gemini", client=client, runner=lambda cmd, **kw: calls.append(kw["input"]))
     spk.say("one")
     spk.say("two")
-    assert calls == ["one", "two"] and len(tries) == 1  # didn't retry Gemini during the cooldown
+    assert calls == ["one", "two"] and len(tries) == 2  # each speech model tried once, then cooldown
 
 
 def test_speaker_voice_follows_profile():

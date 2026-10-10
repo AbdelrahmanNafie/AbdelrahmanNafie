@@ -15,7 +15,7 @@ def test_claude_sees_only_the_allowlisted_tools(gateway):
         async with Client(build_server(gateway)) as client:
             tools = {t.name for t in (await client.list_tools()).tools}
             assert tools == {"list_files", "read_file", "system_info", "write_note", "open_app",
-                             "delete_file", "open_website", "google_search", "read_web_page",
+                             "delete_file", "open_website", "show_google_results", "read_web_page", "close_browser_tab",
                              "search_files", "open_file_or_folder", "draft_message", "media_control",
                              "lock_screen", "list_running_apps", "close_app", "read_clipboard",
                              "copy_to_clipboard", "remember", "recall", "forget", "db_add", "db_find",

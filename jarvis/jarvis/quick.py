@@ -70,6 +70,20 @@ Being proactive (helpful, not pushy):
 - After helping, offer at most ONE short, concrete next step when it's genuinely useful and tied
   to their work. Skip it for small talk and quick commands.{proactive_note}
 
+Finding information — do it in the background, never in front of them:
+- Questions, facts, news, prices, "search for…", "look up…", "find out…" → search_web (Google +
+  it reads the pages itself). A specific page → read_web_page. Then just tell them the answer.
+- NEVER open a website or a Google results page to find something out. Open things in their
+  browser only when they ask to see/open/watch/play them ("open YouTube", "show me the results").
+- If they ask you to close tabs: close_browser_tab closes the tab in front.
+
+Listening:
+- The audio can contain other people, a TV or a video. Only respond to the main speaker talking
+  to you (the closest, clearest voice). If the clip is only background talk, or clearly not meant
+  for you, reply exactly with two lines — "HEARD: <what you heard>" and "[IGNORE]" — and call no tools.
+- If they interrupted your last reply, what they say now is usually a correction: adjust right
+  away, don't repeat what they already heard, and don't argue.
+
 Doing things on the laptop:
 - Everyday tasks: apps, websites, searches, reading/summarizing pages, files and folders, notes,
   email/WhatsApp drafts, volume/media, clipboard, reminders, running apps.
@@ -285,13 +299,22 @@ class QuickBrain:
 
     # ------------------------------------------------------------------- turn
     def handle(self, heard: Heard | None = None, *, audio: bytes | None = None,
-               mime_type: str = "audio/wav") -> tuple[str, str]:
-        """Run one request to completion. Returns (what the user said, spoken answer)."""
+               mime_type: str = "audio/wav", interrupted: str | None = None) -> tuple[str, str]:
+        """Run one request to completion. Returns (what the user said, spoken answer).
+
+        interrupted: the part of the previous reply they heard before talking over it.
+        An empty answer means "not meant for me" (background voices): say nothing.
+        """
         from google.genai import types
 
+        self.on_event("turn")
         self._system = self.system_prompt()
         window = self.active_window()
         context = f"\n[Window in front: {window}]" if window else ""
+        if interrupted is not None:
+            context += (f"\n[They interrupted your previous reply after hearing: «{interrupted[:300]}». "
+                        "Treat this as a correction or change of plan.]")
+            self._mark_interrupted(interrupted)
         if audio is not None:
             user = types.Content(role="user", parts=[
                 types.Part.from_bytes(data=audio, mime_type=mime_type),
@@ -339,6 +362,10 @@ class QuickBrain:
             text = "HEARD: \nI stopped because the task needed too many steps."
 
         said, answer = _split_heard(text, fallback=heard.original if heard else "")
+        if answer.strip().upper().startswith("[IGNORE]"):  # background voices, not for us
+            if audio is not None:
+                turn[0] = types.Content(role="user", parts=[types.Part(text=f"(background: {said or 'unclear'})")])
+            return said, ""
         cleaned = drop_repeated_opening(answer, [ex["answer"] for ex in self.store.recent_exchanges(3)])
         if cleaned != answer and turn[-1].role == "model":  # so the model doesn't copy its old habit
             turn[-1] = types.Content(role="model", parts=[types.Part(text=f"HEARD: {said}\n{cleaned}")])
@@ -358,6 +385,15 @@ class QuickBrain:
                                                             for p in content.parts])
         self.turns = (self.turns + [turn])[-_MAX_HISTORY_TURNS:]
         return said, answer or "Done."
+
+    def _mark_interrupted(self, heard: str) -> None:
+        """History should show what they actually heard, not the whole reply."""
+        from google.genai import types
+
+        if self.turns and self.turns[-1] and self.turns[-1][-1].role == "model":
+            self.turns[-1][-1] = types.Content(role="model", parts=[types.Part(
+                text=f"{heard} [interrupted by the user]")])
+        self.store.update_last_answer(f"{heard} [interrupted]")
 
     def system_prompt(self) -> str:
         profile = prof.Profile.load(self.settings.home)

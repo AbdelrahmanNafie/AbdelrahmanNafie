@@ -268,6 +268,10 @@ class Store:
         with self._conn() as c:
             c.execute("INSERT INTO conversation (ts, said, answer) VALUES (?,?,?)", (time.time(), said, answer))
 
+    def update_last_answer(self, answer: str) -> None:
+        with self._conn() as c:
+            c.execute("UPDATE conversation SET answer=? WHERE id=(SELECT MAX(id) FROM conversation)", (answer,))
+
     def recent_exchanges(self, limit: int = 6) -> list[dict[str, Any]]:
         with self._conn() as c:
             rows = c.execute("SELECT ts, said, answer FROM conversation ORDER BY id DESC LIMIT ?", (limit,)).fetchall()

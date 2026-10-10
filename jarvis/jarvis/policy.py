@@ -57,6 +57,7 @@ ACTION_RISK: dict[str, Risk] = {
     "restart_jarvis": Risk.CHANGE,
     "web_answer": Risk.READ,
     "my_activity": Risk.READ,
+    "close_browser_tab": Risk.CHANGE,
     "improve_myself": Risk.DANGER,  # edits Jarvis's own code (tested, auto-undone on failure)
 }
 

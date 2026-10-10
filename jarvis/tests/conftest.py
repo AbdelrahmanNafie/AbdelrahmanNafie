@@ -40,3 +40,11 @@ def _fresh_model_preference():
     ears._preferred.clear()
     yield
     ears._preferred.clear()
+
+
+@pytest.fixture(autouse=True)
+def _no_network_voices(monkeypatch):
+    """Tests never reach Microsoft's voice service, whatever is installed."""
+    from jarvis import voice
+
+    monkeypatch.setattr(voice, "_edge_available", lambda: False)

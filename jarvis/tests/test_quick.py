@@ -129,7 +129,7 @@ def test_heavy_work_goes_to_claude(settings, store):
 
 def test_every_tool_is_declared(settings, store):
     qb = brain(settings, Gateway(settings, store), FakeGemini([]), ask_claude=lambda t: "")
-    assert {"open_app", "open_website", "google_search", "read_web_page", "search_files", "open_file_or_folder",
+    assert {"open_app", "open_website", "show_google_results", "read_web_page", "search_files", "open_file_or_folder",
             "draft_message", "code_task", "ask_claude", "delete_file", "media_control", "lock_screen",
             "list_running_apps", "close_app", "read_clipboard", "copy_to_clipboard", "set_reminder"} <= set(qb.tools)
     # Gemini can build a schema for every tool (catches string-annotation bugs).

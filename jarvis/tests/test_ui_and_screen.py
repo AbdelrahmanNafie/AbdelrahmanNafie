@@ -116,6 +116,6 @@ def test_brain_sees_window_title_and_screenshot(settings, store):
     assert "main.py - VS Code" in first_text
     images = [p for c in seen[1] for p in c.parts if p.inline_data and p.inline_data.mime_type == "image/jpeg"]
     assert len(images) == 1
-    assert events == ["tool", "screen"]
+    assert events == ["turn", "tool", "screen"]
     # the screenshot is not kept in history
     assert not any(p.inline_data for t in qb.turns for c in t for p in c.parts)

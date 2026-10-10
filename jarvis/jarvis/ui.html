@@ -335,7 +335,8 @@ requestAnimationFrame(frame);
 const LABELS = { sleeping: 'Say "Hey Jarvis"', idle: "Ready", listening: "Listening…", thinking: "Thinking…",
                  speaking: "Speaking", error: "Something went wrong" };
 const TOOL = {
-  open_app: ["🚀", "Opening app"], open_website: ["🌐", "Opening website"], google_search: ["🔎", "Searching Google"],
+  open_app: ["🚀", "Opening app"], open_website: ["🌐", "Opening website"], show_google_results: ["🔎", "Showing Google results"],
+  close_browser_tab: ["🗙", "Closing tab"],
   read_web_page: ["📖", "Reading page"], search_files: ["🗂️", "Searching files"], open_file_or_folder: ["📂", "Opening"],
   draft_message: ["✉️", "Drafting message"], media_control: ["🔊", "Media"], lock_screen: ["🔒", "Locking screen"],
   list_running_apps: ["🪟", "Checking apps"], close_app: ["✖️", "Closing app"], read_clipboard: ["📋", "Reading clipboard"],
@@ -345,7 +346,7 @@ const TOOL = {
   code_task: ["👩‍💻", "Claude coding"], remember: ["🧠", "Remembering"], recall: ["🧠", "Recalling"],
   forget: ["🧹", "Forgetting"], db_add: ["🗃️", "Saving to your database"], db_find: ["🗃️", "Checking your database"],
   db_update: ["🗃️", "Updating your database"], db_delete: ["🗃️", "Removing from your database"],
-  search_web: ["🌍", "Searching the web"], set_preference: ["⚙️", "Updating settings"], go_to_sleep: ["💤", "Pausing"],
+  search_web: ["🌍", "Researching in the background"], set_preference: ["⚙️", "Updating settings"], go_to_sleep: ["💤", "Pausing"],
   restart_yourself: ["🔄", "Restarting"], improve_myself: ["🛠️", "Improving myself"],
   my_activity: ["🧭", "Checking your activity"],
 };

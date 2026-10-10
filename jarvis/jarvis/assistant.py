@@ -16,7 +16,9 @@ improved its own code). Stop with Ctrl+C or by closing the window.
 from __future__ import annotations
 
 import argparse
+import collections
 import os
+import random
 import subprocess
 import sys
 import threading
@@ -25,6 +27,7 @@ from typing import Callable
 
 from . import actions, activity, config, voice
 from .profile import Profile
+from .speaker_id import VoicePrint, wav_samples
 from .bridge import BrainError, ask_brain, hear
 from .ears import EarsError, Heard
 from .gateway import Gateway
@@ -36,22 +39,47 @@ from .ui import UI, NullUI, run_native_window
 RESTART_CODE = 3  # the child asks the supervisor to start it again
 
 
-class _UISpeaker:
-    """Wraps the speaker so the orb shows 'speaking' while the voice plays (one voice at a time)."""
+# Said (from the phrase cache: instant and free) when a tool will take a few seconds.
+SLOW_TOOLS = {"search_web", "read_web_page", "ask_claude", "code_task", "look_at_screen", "improve_myself",
+              "my_activity"}
+FILLERS = {
+    "english": ["One sec, let me check.", "Let me look into that.", "Give me a moment.", "On it, one second."],
+    "arabic": ["ثانية واحدة، هشوف.", "لحظة، بدوّرلك.", "استنى ثانية."],
+}
 
-    def __init__(self, speaker: voice.Speaker, ui):
+
+class _UISpeaker:
+    """Wraps the speaker: the orb shows 'speaking', one voice at a time, and replies can be
+    interrupted (by talking over Jarvis, the wake word, Esc, a tap or typing)."""
+
+    def __init__(self, speaker: voice.Speaker, ui, *, barge=None):
         self.speaker, self.ui = speaker, ui
+        self.barge = barge  # text → voice.BargeIn (or None when interrupting by voice is off)
         self._lock = threading.Lock()
 
-    def say(self, text: str, **kw) -> None:
+    def say(self, text: str, *, interruptible: bool = False, after: str = "idle", **kw):
         if not text.strip():
-            return
+            return None
         with self._lock:
             self.ui.emit("state", state="speaking")
             try:
-                self.speaker.say(text, **kw)
+                if not interruptible:
+                    return self.speaker.say(text, **kw)
+
+                def by_hand() -> bool:
+                    return self.ui.has_command() or voice.escape_pressed()
+
+                listener = self.barge(text) if self.barge else None
+                if listener is None:
+                    return self.speaker.say(text, should_stop=by_hand, **kw)
+                with listener as heard:
+                    spoken = self.speaker.say(text, should_stop=lambda: heard.triggered.is_set() or by_hand(), **kw)
+                    if spoken is not None and heard.triggered.is_set():
+                        self.ui.emit("state", state="listening")
+                        spoken.audio = heard.collect()
+                return spoken
             finally:
-                self.ui.emit("state", state="idle")
+                self.ui.emit("state", state=after)
 
     @property
     def first_audio_s(self) -> float | None:
@@ -152,7 +180,7 @@ class Monitor:
 
 def handle_one(settings: config.Settings, store: Store, speaker, record: Callable[[], bytes | None], *,
                to: str, new_session: bool, quick: QuickBrain | None = None, ui=None,
-               text: str | None = None) -> bool:
+               text: str | None = None, outcome: dict | None = None) -> bool:
     """One request: listen (or typed text) → understand + act → speak. False if nobody spoke."""
     ui = ui or NullUI()
     if text is None:
@@ -177,17 +205,29 @@ def handle_one(settings: config.Settings, store: Store, speaker, record: Callabl
             ui.emit("error", text=str(exc))
             speaker.say("Sorry, Gemini isn't answering right now. Check the window for details.")
             return True
-        if said:
-            print(f"👂 {said}")
-            store.log("ears", "understood", said)
-            ui.emit("heard", text=said)
+        if not answer:  # only background voices / not meant for Jarvis
+            print(f"🙉 Not meant for me{(': ' + said) if said else ''} — staying quiet", flush=True)
+            ui.emit("info", text="Ignored background voices")
+            if outcome is not None:
+                outcome["ignored"] = "model"
+            return False
         took = time.monotonic() - started
-        store.log("brain", "reply", answer)
-        print(f"⚡ {answer}", flush=True)
-        ui.emit("answer", text=answer, seconds=took)
-        speaker.say(answer)
-        voice_s = getattr(speaker, "first_audio_s", None)
-        print(f"   ⏱ understood + acted in {took:.1f}s" + (f" · voice started {voice_s:.1f}s later" if voice_s else ""))
+        spoken = _show_and_say(store, speaker, ui, said, answer, took)
+        corrections = 0
+        while spoken is not None and getattr(spoken, "audio", None) and corrections < 5:
+            corrections += 1  # they talked over the answer: take the correction right away
+            print("✋ Adjusting to what you said…", flush=True)
+            ui.emit("state", state="thinking")
+            started = time.monotonic()
+            try:
+                said, answer = quick.handle(audio=spoken.audio, interrupted=spoken.heard_text)
+            except QuickError as exc:
+                print(f"❌ {exc}")
+                ui.emit("error", text=str(exc))
+                break
+            if not answer:
+                break
+            spoken = _show_and_say(store, speaker, ui, said, answer, time.monotonic() - started)
         return True
 
     try:
@@ -223,14 +263,42 @@ def handle_one(settings: config.Settings, store: Store, speaker, record: Callabl
     return True
 
 
+def _show_and_say(store: Store, speaker, ui, said: str, answer: str, took: float):
+    if said:
+        print(f"👂 {said}")
+        store.log("ears", "understood", said)
+        ui.emit("heard", text=said)
+    store.log("brain", "reply", answer)
+    print(f"⚡ {answer}", flush=True)
+    ui.emit("answer", text=answer, seconds=took)
+    spoken = speaker.say(answer, interruptible=True)
+    voice_s = getattr(speaker, "first_audio_s", None)
+    print(f"   ⏱ understood + acted in {took:.1f}s" + (f" · voice started {voice_s:.1f}s later" if voice_s else ""))
+    return spoken
+
+
+def _pick_voice(raw: voice.Speaker, choice: str, profile_voice: str) -> None:
+    """--voice auto (default): the profile's voice decides the engine (Ava → Edge, Aoede → Gemini)."""
+    if choice in ("off", "windows"):
+        raw.voice = choice
+        return
+    engine = voice.engine_for(profile_voice)[0]
+    if choice == "auto" or choice == engine:
+        raw.set_voice(profile_voice)
+    else:
+        raw.set_voice(voice.DEFAULT_VOICE if choice == "edge" else "Aoede")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="jarvis.assistant", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--push-to-talk", action="store_true", help="press Enter instead of saying Hey Jarvis")
     parser.add_argument("--to", choices=["quick", "claude", "print"], default="quick",
                         help="quick: Gemini does light tasks, hands heavy ones to Claude (default)")
-    parser.add_argument("--voice", choices=["gemini", "windows", "off"], default=voice.default_voice(),
-                        help="gemini: natural voice from your profile (default); windows: built-in voice")
+    parser.add_argument("--voice", choices=["auto", "edge", "gemini", "windows", "off"], default=voice.default_voice(),
+                        help="auto (default): your profile's voice (Ava = Microsoft neural, no daily limit)")
+    parser.add_argument("--barge-in", choices=["auto", "wake", "off"], default=os.environ.get("JARVIS_BARGE_IN", "auto"),
+                        help="interrupt Jarvis by talking (auto), only with the wake word (wake), or not at all")
     parser.add_argument("--sensitivity", type=float, default=0.4,
                         help="wake word threshold 0-1 (lower = triggers more easily)")
     parser.add_argument("--follow-up", type=float, default=8.0, metavar="SECONDS",
@@ -244,10 +312,47 @@ def main(argv: list[str] | None = None) -> int:
     store = Store(settings.db_path)
     profile = Profile.load(settings.home)
     ui = NullUI() if args.no_ui else UI(store)
-    raw_speaker = voice.Speaker(args.voice, on_level=lambda v: ui.emit("level", value=v, source="voice"))
-    if args.voice == "gemini":
-        raw_speaker.set_voice(profile.voice)
-    speaker = _UISpeaker(raw_speaker, ui)
+    out_levels: collections.deque = collections.deque(maxlen=40)
+
+    def on_voice_level(v: float) -> None:
+        out_levels.append((time.monotonic(), v * 6000))  # what we play: lets barge-in ignore our own echo
+        ui.emit("level", value=v, source="voice")
+
+    def out_level() -> float:
+        now = time.monotonic()
+        return max((lv for t, lv in list(out_levels) if now - t < 0.5), default=0.0)
+
+    raw_speaker = voice.Speaker("edge" if voice._edge_available() else "gemini", on_level=on_voice_level,
+                                cache_dir=settings.home / "voice_cache")
+    _pick_voice(raw_speaker, args.voice, profile.voice)
+    voice_name = {"edge": raw_speaker.edge_voice, "gemini": raw_speaker.gemini_voice}.get(raw_speaker.voice,
+                                                                                         raw_speaker.voice)
+    print(f"🔊 Voice: {voice_name} ({raw_speaker.voice})", flush=True)
+
+    voiceprint = VoicePrint(settings.home)
+    if voiceprint.enrolled:  # load the voice model now, not on the first request
+        threading.Thread(target=voiceprint.embedder, daemon=True).start()
+        print("🔒 Voice lock: only your voice is answered (python -m jarvis.enroll --forget to undo)", flush=True)
+    else:
+        print("💡 Tip: run `python -m jarvis.enroll` once so Jarvis only listens to your voice.", flush=True)
+
+    def locked() -> bool:
+        return voiceprint.enrolled and Profile.load(settings.home).voice_lock
+
+    wake_ref: dict = {"wake": None}
+    outcome: dict = {"ignored": ""}  # "voice" = not your voice (checked locally), "model" = not meant for Jarvis
+
+    def make_barge(text: str):
+        if args.barge_in == "off":
+            return None
+        wake = wake_ref["wake"] if "jarvis" not in text.lower() else None  # don't trigger on our own words
+        energy = args.barge_in == "auto" and (locked() or raw_speaker.levels_available)
+        if not energy and wake is None:
+            return None
+        return voice.BargeIn(out_level=out_level, voiceprint=voiceprint if locked() else None, wake=wake,
+                             energy=energy)
+
+    speaker = _UISpeaker(raw_speaker, ui, barge=make_barge)
     ui.emit("profile", assistant_name=profile.assistant_name, user_name=profile.user_name)
     stop = threading.Event()
     control = Control()
@@ -263,7 +368,7 @@ def main(argv: list[str] | None = None) -> int:
             speaker.say("I need your approval.")
 
         def on_profile(p: Profile) -> None:  # "call me…", "your name is…", "use a different voice"
-            if args.voice != "off":
+            if args.voice not in ("off", "windows"):
                 raw_speaker.set_voice(p.voice)
             ui.emit("profile", assistant_name=p.assistant_name, user_name=p.user_name)
 
@@ -280,7 +385,19 @@ def main(argv: list[str] | None = None) -> int:
             return ask_brain(settings, store, Heard(original=task, language="english", english=task),
                              new_session=False)
 
-        quick = QuickBrain(settings, gateway, ask_claude=claude, on_event=lambda kind, **d: ui.emit(kind, **d))
+        filler = {"said": False}
+
+        def on_event(kind: str, **data) -> None:
+            ui.emit(kind, **data)
+            if kind == "turn":
+                filler["said"] = False
+            elif kind == "tool" and data.get("name") in SLOW_TOOLS and not filler["said"]:
+                filler["said"] = True  # say something while it works, instead of silence
+                lang = "arabic" if Profile.load(settings.home).reply_language == "arabic" else "english"
+                threading.Thread(target=speaker.say, args=(random.choice(FILLERS[lang]),),
+                                 kwargs={"after": "thinking", "from_other_thread": True}, daemon=True).start()
+
+        quick = QuickBrain(settings, gateway, ask_claude=claude, on_event=on_event)
 
     def interrupted() -> bool:
         return stop.is_set() or voice.enter_pressed() or ui.has_command()
@@ -296,6 +413,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print("Loading the wake word model…", flush=True)
         wake = voice.WakeWord(threshold=args.sensitivity)
+        wake_ref["wake"] = wake
 
         def trigger() -> None:
             print("\n💤 Say \"Hey Jarvis\" (or press Enter / tap the orb)…", flush=True)
@@ -316,6 +434,13 @@ def main(argv: list[str] | None = None) -> int:
                                            on_level=lambda v: ui.emit("level", value=v))
         if audio is not None:
             voice.chime("stop")
+            if locked() and not voiceprint.matches(wav_samples(audio)):
+                score = voiceprint.last_score
+                print(f"🙉 Ignored a voice that isn't yours (match {score:.2f})" if score is not None
+                      else "🙉 Ignored: couldn't tell whose voice that was", flush=True)
+                ui.emit("info", text="Ignored a voice that isn't yours")
+                outcome["ignored"] = "voice"
+                return None
         return audio
 
     def loop() -> None:
@@ -334,12 +459,14 @@ def main(argv: list[str] | None = None) -> int:
                 break
             command = ui.next_command()
             follow_up = False
+            strangers = 0
             while not stop.is_set():  # conversation: no wake word until the user goes quiet
                 typed = command[1] if command and command[0] == "text" else None
                 command = None
+                outcome["ignored"] = ""
                 try:
                     spoke = handle_one(settings, store, speaker, lambda: record(follow_up), to=args.to,
-                                       new_session=first, quick=quick, ui=ui, text=typed)
+                                       new_session=first, quick=quick, ui=ui, text=typed, outcome=outcome)
                     first = False
                 except Exception as exc:  # noqa: BLE001 — keep the assistant alive
                     print(f"❌ Unexpected error: {type(exc).__name__}: {exc}")
@@ -351,10 +478,15 @@ def main(argv: list[str] | None = None) -> int:
                 if control.sleep_requested.is_set():  # "pause" / "go to sleep": back to the wake word
                     control.sleep_requested.clear()
                     break
+                if not spoke and outcome["ignored"] == "voice" and strangers < 3:
+                    strangers += 1  # someone else talked (checked on this laptop, free): keep listening for you
+                    follow_up = True
+                    continue
                 if not spoke:
-                    if not follow_up:
+                    if not follow_up and not outcome["ignored"]:
                         speaker.say("I didn't hear anything.")
                     break
+                strangers = 0
                 if args.follow_up <= 0:
                     break
                 follow_up = True

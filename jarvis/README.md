@@ -55,17 +55,18 @@ python -m jarvis.doctor                          # checks every part, step by st
 python -m jarvis.dashboard                       # open the printed link
 python -m jarvis.bridge --text "افتح النوت باد"   # typed Arabic
 python -m jarvis.bridge --mic 5                  # speak for 5 seconds
-pytest                                           # 128 tests
+pytest                                           # 151 tests
 ```
 
 ### Jarvis mode: "Hey Jarvis" and spoken replies
 
 ```powershell
-pip install -e ".[mic,wake,screen,ui]"                # once
+pip install -e ".[mic,wake,screen,ui,voice]"          # once
+python -m jarvis.enroll                               # once: teach it your voice (about a minute)
 python -m jarvis.assistant                            # say "Hey Jarvis", then speak
 python -m jarvis.assistant --push-to-talk             # press Enter instead of the wake word
 python -m jarvis.assistant --to print                 # test without Claude (repeats what it understood)
-python -m jarvis.assistant --voice windows            # built-in Windows voice (default: natural Gemini voice)
+python -m jarvis.assistant --voice windows            # built-in Windows voice (default: your profile's voice, Ava)
 ```
 
 - The wake word runs **offline** (openWakeWord, ready-made "Hey Jarvis" model). No audio leaves the laptop until it hears that phrase.
@@ -93,7 +94,9 @@ By default Gemini (the "quick brain") does light tasks itself in a few seconds, 
 | Say (Arabic or English) | Tool | Safety rule |
 |---|---|---|
 | "Open Chrome / VS Code / WhatsApp" | `open_app` | Only apps in your Start menu (or `apps.json`) |
-| "Open YouTube", "Search Google for…" | `open_website`, `google_search` | http(s) only |
+| "Open YouTube", "Show me Google results for…" | `open_website`, `show_google_results` | http(s) only; only when you want to see it |
+| "Search for… / look up…" | `search_web` | In the background: nothing opens on screen |
+| "Close this tab" | `close_browser_tab` | Only when a browser is the window in front |
 | "Summarize this page: …" | `read_web_page` | Public sites only (no local network); page text is treated as data |
 | "Find my CV", "Open the Downloads folder" | `search_files`, `open_file_or_folder` | Documents, Desktop, Downloads and project folders; programs/scripts are never opened |
 | "Write an email to … / a WhatsApp to …" | `draft_message` | Only **opens a draft**; you press Send |
@@ -123,8 +126,35 @@ When an approval is needed in voice mode, Jarvis asks out loud: press **Y** to a
 - **Personality:** every turn Gemini gets a fresh persona prompt with your name, its name, what it remembers about you, your open items, upcoming reminders and the time. It chats, answers general questions from its own knowledge, and searches the web for anything current.
 - **Memory:** when you mention something lasting (your work, projects, people, preferences), it saves it quietly and uses it later. Ask "what do you know about me?" or "forget that".
 - **Proactive:** after helping, it may offer one short, relevant next step. A start-up briefing lists open and overdue tasks and the next reminder. A background check speaks due reminders and warns once about a low battery. Turn suggestions off with "stop making suggestions" (`proactive` off).
-- **Voice:** the natural Gemini voice `Aoede` by default (`Kore`, `Leda`, `Zephyr`… also work). The audio is streamed, so it starts playing while the rest is still being generated, and the orb follows the real loudness of the voice. Only your reply text goes to the speech model. If Gemini is over its quota, it switches to the Windows voice (female if installed) for 10 minutes.
+- **Voice:** see *One consistent voice* below. The orb follows the real loudness of the voice, and only your reply text goes to the speech engine.
 - **Names:** the assistant's name changes everywhere, but the offline wake phrase stays **"Hey Jarvis"**: openWakeWord ships a model for that phrase only. A custom wake word needs a trained model.
+
+### Listening to you, and only you
+
+- **Voice lock:** `python -m jarvis.enroll` records 6 short sentences and saves a voiceprint (256 numbers, on the laptop). After that, every recording is checked locally (WeSpeaker ResNet34, about 10 ms) before anything goes to Gemini. Other people, the TV, and Jarvis's own echo are ignored. If you speak while others talk, it still counts as long as part of the recording is clearly you. Test it with `python -m jarvis.enroll --test`, tune it with `JARVIS_VOICE_MATCH` (default 0.45), and switch it off with "listen to everyone" (`voice_lock` off) or `--forget`. In tests on real speech, the enrolled speaker scored 0.80 and other speakers 0.31 and −0.01.
+- **Noise:** Silero VAD (shipped with openWakeWord) separates speech from other sounds. Fans, traffic and music don't start or stretch a recording, and they can't trigger the wake word.
+- **Background talk:** Gemini answers only the main speaker. If a clip is just people talking nearby, it stays quiet and does nothing.
+- **Best results:** a headset or a directional mic beats any software filter.
+
+### Interrupt it any time
+
+While Jarvis is speaking, just talk. It stops within about a quarter of a second, listens to the correction ("no, at nine", "not that one"), and adjusts, knowing roughly what you'd already heard. It also stops when you say "Hey Jarvis", press **Esc**, tap the orb or type.
+
+- On laptop speakers the microphone also hears Jarvis. It learns how loud that echo is and only reacts to sound clearly louder than it. With the voice lock, it also checks that the voice is yours, so its own voice can't cut it off.
+- With the Windows voice and no voice lock, only the wake word, Esc, a tap or typing interrupt. `--barge-in wake` makes that the rule everywhere, and `--barge-in off` disables voice interruptions.
+
+### Research happens in the background
+
+"Search for…", "look up…" and "what's the latest on…" go through `search_web`, which runs Google Search and reads the pages on Google's side (URL context). Nothing opens on your screen. Jarvis opens a site or Google results only when you ask to see them (`open_website`, `show_google_results`). If a page can't be read locally (blocked, or a JavaScript app), Google reads it instead. "Close this tab" closes the tab in front, but only if a browser is in front. While a search or other slow step runs, it says a short "one sec, let me check" from a phrase cache, which is instant and free.
+
+### One consistent voice
+
+Gemini's speech models have small daily quotas: developers report about 10 requests a day on the free tier and about 100 on paid tiers. When the quota ran out, Jarvis switched to the Windows voice mid-session, which is why the voice "changed". Now:
+
+- The default voice is **Ava**, a Microsoft neural voice through `edge-tts`. It is free, has no key and no daily limit, and starts speaking after the first sentence. Other options: Emma, Jenny, Aria, Sonia, **Salma** (Egyptian Arabic), Zariyah. `edge-tts` uses the online read-aloud service built into Microsoft Edge. It isn't an official API, and the text you hear is sent to Microsoft.
+- Gemini voices (Aoede, Kore…) still work: "use the Aoede voice". When one speech model runs out, it tries the second (`JARVIS_TTS_FALLBACKS`) before falling back.
+- A reply that has started is never restarted in another voice. If the voice fails halfway, it stops and the full text stays on screen.
+- Short phrases ("I need your approval", fillers) are generated once and replayed from `JARVIS_HOME/voice_cache`.
 
 ### Self-improvement (`improve_myself`)
 
@@ -165,11 +195,14 @@ Install [Tailscale](https://tailscale.com) on the laptop and the phone. Start th
 | `JARVIS_HOME/apps.json` | notepad, calculator, … | Spoken name → executable allowlist |
 | `JARVIS_GEMINI_MODEL` | `gemini-3.5-flash` | Ears model (tried first) |
 | `JARVIS_GEMINI_FALLBACKS` | `gemini-3.5-flash-lite,gemini-3.8-flash` | Also asked in parallel if the first model is slow (>4 s) or busy; the fastest answer wins |
-| `JARVIS_VOICE` | `gemini` | Spoken replies: `gemini` (voice from your profile), `windows` or `off` |
+| `JARVIS_VOICE` | `auto` | `auto` (profile voice: Ava → Edge, Aoede → Gemini), `edge`, `gemini`, `windows` or `off` |
+| `JARVIS_TTS_FALLBACKS` | `gemini-3.8-flash-lite-tts` | Second Gemini speech model (its own quota) |
+| `JARVIS_VOICE_MATCH` | `0.45` | Voice lock strictness (higher = stricter) |
+| `JARVIS_BARGE_IN` | `auto` | Interrupt by talking (`auto`), only with the wake word (`wake`), or `off` |
 | `JARVIS_TTS_MODEL` | `gemini-3.8-flash-tts` | Gemini speech model |
 | `JARVIS_THINKING` | `low` | Thinking level for the first step of each request (later steps use `minimal`). `minimal` is fastest |
 | `JARVIS_TTS_STYLE` | *(none)* | Optional short style in front of the spoken text, e.g. `Say warmly` |
-| `JARVIS_HOME/profile.json` | Jarvis / Aoede / English | Your name, its name, voice, reply language (`english`, `arabic`, `same`), proactive, activity_tracking. Change it by voice |
+| `JARVIS_HOME/profile.json` | Jarvis / Ava / English | Your name, its name, voice, reply language (`english`, `arabic`, `same`), proactive, activity_tracking, voice_lock. Change it by voice |
 | `JARVIS_QUICK_MODEL` | `gemini-3.5-flash` | Gemini model that does light tasks itself |
 | `JARVIS_CODE_DIRS` | `~/AbdelrahmanNafie`, `~/Projects`, `~/source/repos` (if they exist) | Folders Claude may edit for coding tasks (separate with `;`) |
 | `JARVIS_USER_DIRS` | `1` | `0` limits Jarvis to its own workspace instead of Documents/Desktop/Downloads |

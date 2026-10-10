@@ -87,7 +87,7 @@ class FakeSpeaker:
     def __init__(self):
         self.said = []
 
-    def say(self, text):
+    def say(self, text, **kw):
         self.said.append(text)
 
 

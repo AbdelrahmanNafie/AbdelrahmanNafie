@@ -436,6 +436,43 @@ def media_key(settings: Settings, action: str, times: int = 1, *,
     return {"pressed": action, "times": times}
 
 
+def _press_combo(vks: list[int]) -> None:
+    import ctypes
+
+    user32 = ctypes.windll.user32  # type: ignore[attr-defined]
+    for vk in vks:
+        user32.keybd_event(vk, 0, 0, 0)
+    for vk in reversed(vks):
+        user32.keybd_event(vk, 0, 2, 0)
+
+
+_BROWSERS = {"chrome", "msedge", "firefox", "brave", "opera", "vivaldi", "arc", "chromium"}
+
+
+def _foreground():
+    from .activity import foreground
+
+    return foreground()
+
+
+def close_browser_tab(settings: Settings, count: int = 1, *, press_combo: Callable[[list[int]], None] = _press_combo,
+                      foreground: Callable[[], tuple[str, str] | None] = _foreground) -> dict[str, Any]:
+    """Ctrl+W in the browser window in front — only if it really is a browser."""
+    count = max(1, min(int(count), 10))
+    closed = []
+    for _ in range(count):
+        fg = foreground()
+        if not fg or fg[0].lower() not in _BROWSERS:
+            if not closed:
+                raise ActionError(f"the window in front isn't a browser ({fg[1] if fg else 'unknown'}), "
+                                  "so I didn't close anything")
+            break
+        closed.append(fg[1])
+        press_combo([0x11, 0x57])  # Ctrl + W
+        time.sleep(0.25)
+    return {"closed_tabs": closed}
+
+
 def _lock() -> None:
     import ctypes
 
@@ -613,14 +650,17 @@ def restart_jarvis(settings: Settings, *, control=None) -> dict[str, Any]:
     return {"restarting": True}
 
 
-def _ask_google(question: str, model: str) -> dict[str, Any]:
+def _ask_google(question: str, model: str, urls: list[str] | None = None) -> dict[str, Any]:
+    """Google Search + URL context on Google's side: it searches and reads pages in the background."""
     from google.genai import types
 
     from .ears import make_client
 
+    prompt = question + ("\n\nRead these pages:\n" + "\n".join(urls) if urls else "")
     response = make_client().models.generate_content(
-        model=model, contents=question,
-        config=types.GenerateContentConfig(tools=[types.Tool(google_search=types.GoogleSearch())],
+        model=model, contents=prompt,
+        config=types.GenerateContentConfig(tools=[types.Tool(google_search=types.GoogleSearch()),
+                                                  types.Tool(url_context=types.UrlContext())],
                                            temperature=0.2))
     sources = []
     for cand in response.candidates or []:
@@ -631,10 +671,12 @@ def _ask_google(question: str, model: str) -> dict[str, Any]:
     return {"answer": response.text or "", "sources": sources[:5]}
 
 
-def web_answer(settings: Settings, question: str, *, ask_google=None) -> dict[str, Any]:
+def web_answer(settings: Settings, question: str, urls: str = "", *, ask_google=None) -> dict[str, Any]:
     if not question.strip():
         raise ActionError("empty question")
-    result = (ask_google or _ask_google)(question.strip(), settings.quick_model)
+    pages = [_check_url(u).geturl() for u in re.split(r"[\s,]+", urls.strip()) if u][:5]
+    extra = {"urls": pages} if pages else {}
+    result = (ask_google or _ask_google)(question.strip(), settings.quick_model, **extra)
     # Untrusted: web content can't give Jarvis instructions.
     return {"untrusted_web_answer": result.get("answer", "")[:6000], "sources": result.get("sources", [])}
 
@@ -684,4 +726,5 @@ REGISTRY: dict[str, Callable[..., dict[str, Any]]] = {
     "web_answer": web_answer,
     "improve_myself": improve_myself,
     "my_activity": my_activity,
+    "close_browser_tab": close_browser_tab,
 }
