@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jarvis</title>
+<style>
+  :root {
+    --bg: #04050d;
+    --text: #f5f5f7;
+    --muted: rgba(235, 235, 245, .6);
+    --faint: rgba(235, 235, 245, .3);
+    --glass: rgba(28, 28, 36, .55);
+    --glass-strong: rgba(36, 36, 46, .78);
+    --hair: rgba(255, 255, 255, .09);
+    --blue: #0a84ff;
+    --cyan: #64d2ff;
+    --violet: #bf5af2;
+    --pink: #ff375f;
+    --green: #30d158;
+    --orange: #ff9f0a;
+    --red: #ff453a;
+    --spring: cubic-bezier(.2, .9, .25, 1.1);
+    --ease: cubic-bezier(.25, .8, .25, 1);
+    --font: -apple-system, "SF Pro Display", "SF Pro Text", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text); font: 15px/1.4 var(--font);
+    overflow: hidden; -webkit-font-smoothing: antialiased; user-select: none;
+  }
+  #space { position: fixed; inset: 0; width: 100%; height: 100%; }
+  .nebula { position: fixed; inset: -20%; pointer-events: none; filter: blur(60px); opacity: .55;
+    background:
+      radial-gradient(40% 35% at 25% 30%, rgba(94, 92, 230, .35), transparent 70%),
+      radial-gradient(35% 30% at 75% 65%, rgba(191, 90, 242, .25), transparent 70%),
+      radial-gradient(30% 25% at 60% 20%, rgba(100, 210, 255, .18), transparent 70%);
+    animation: drift 40s ease-in-out infinite alternate; }
+  @keyframes drift { to { transform: translate3d(3%, -2%, 0) rotate(6deg) scale(1.06); } }
+
+  .app { position: relative; height: 100%; display: flex; flex-direction: column; align-items: center;
+    padding: max(14px, env(safe-area-inset-top)) 16px max(14px, env(safe-area-inset-bottom)); }
+
+  /* Dynamic-island style status pill */
+  .island { margin-top: 4px; display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px 0 12px;
+    border-radius: 999px; background: rgba(0, 0, 0, .72); border: 1px solid var(--hair);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, .45); font-weight: 600; font-size: 13px; letter-spacing: .1px;
+    transition: width .5s var(--spring), padding .4s var(--spring); }
+  .island .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); transition: background .3s; }
+  .island[data-state="listening"] .dot { background: var(--green); box-shadow: 0 0 10px var(--green); animation: blink 1.2s infinite; }
+  .island[data-state="thinking"] .dot { background: var(--violet); box-shadow: 0 0 10px var(--violet); animation: blink .6s infinite; }
+  .island[data-state="speaking"] .dot { background: var(--cyan); box-shadow: 0 0 10px var(--cyan); }
+  .island[data-state="error"] .dot { background: var(--red); }
+  @keyframes blink { 50% { opacity: .35; } }
+
+  .stage { position: relative; flex: 1; width: 100%; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; min-height: 0; overflow: hidden; padding-bottom: 8px; }
+  .orb-wrap { position: relative; width: min(74vw, 300px, 40vh); aspect-ratio: 1; cursor: pointer; flex: none;
+    transition: transform .5s var(--spring); }
+  .orb-wrap:active { transform: scale(.94); }
+  #orb { width: 100%; height: 100%; display: block; }
+  .hint { margin-top: 6px; font-size: 13px; color: var(--faint); transition: opacity .3s; }
+
+  .caption { min-height: 64px; max-width: 420px; margin-top: 14px; text-align: center; padding: 0 8px; }
+  .caption .you { font-size: 15px; color: var(--muted); }
+  .caption .you { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .caption .jarvis { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .caption .jarvis { font-size: 19px; font-weight: 600; letter-spacing: -.2px; margin-top: 4px;
+    background: linear-gradient(90deg, #fff, #d7e9ff 40%, #e8d5ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .fade-in { animation: fadeUp .5s var(--ease) both; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); filter: blur(4px); } }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 10px; min-height: 30px; max-width: 380px;
+    max-height: 64px; overflow: hidden; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 999px;
+    font-size: 12.5px; font-weight: 500; background: var(--glass); border: 1px solid var(--hair);
+    backdrop-filter: blur(20px) saturate(160%); -webkit-backdrop-filter: blur(20px) saturate(160%);
+    animation: pop .45s var(--spring) both; }
+  .chip.done { color: var(--muted); }
+  .chip .spin { width: 11px; height: 11px; border-radius: 50%; border: 2px solid rgba(255,255,255,.25); border-top-color: #fff; animation: rot .8s linear infinite; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+  @keyframes pop { from { opacity: 0; transform: scale(.7); } }
+
+  /* Conversation sheet */
+  .sheet { width: 100%; max-width: 440px; border-radius: 26px; background: var(--glass); border: 1px solid var(--hair);
+    backdrop-filter: blur(30px) saturate(170%); -webkit-backdrop-filter: blur(30px) saturate(170%);
+    box-shadow: 0 -10px 40px rgba(0,0,0,.35); overflow: hidden; display: flex; flex-direction: column;
+    max-height: 38vh; transition: max-height .5s var(--spring); }
+  .sheet.collapsed { max-height: 64px; }
+  .grabber { width: 36px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.25); margin: 7px auto 2px; cursor: pointer; flex: none; }
+  .log { overflow-y: auto; padding: 6px 12px 4px; display: flex; flex-direction: column; gap: 6px; scroll-behavior: smooth; }
+  .log::-webkit-scrollbar { width: 0; }
+  .empty { color: var(--faint); font-size: 13px; text-align: center; padding: 8px 0 10px; }
+  .bubble { max-width: 82%; padding: 8px 13px; border-radius: 19px; font-size: 15px; line-height: 1.35;
+    animation: fadeUp .4s var(--ease) both; user-select: text; overflow-wrap: anywhere; }
+  .bubble.me { align-self: flex-end; background: linear-gradient(180deg, #2b95ff, #0a7aff); border-bottom-right-radius: 6px; }
+  .bubble.ai { align-self: flex-start; background: rgba(255,255,255,.1); border-bottom-left-radius: 6px; }
+  .bubble.sys { align-self: center; background: none; color: var(--faint); font-size: 12px; padding: 2px 6px; }
+  .bubble.err { align-self: center; background: rgba(255,69,58,.14); color: #ffb4ae; font-size: 13px; }
+
+  .composer { display: flex; gap: 8px; align-items: center; padding: 8px 10px 10px; flex: none; }
+  .field { flex: 1; height: 40px; border-radius: 999px; border: 1px solid var(--hair); background: rgba(118,118,128,.24);
+    color: var(--text); font: 15px var(--font); padding: 0 16px; outline: none; transition: background .2s, border-color .2s; }
+  .field::placeholder { color: var(--faint); }
+  .field:focus { background: rgba(118,118,128,.34); border-color: rgba(10,132,255,.6); }
+  .mic { width: 40px; height: 40px; border-radius: 50%; border: 0; cursor: pointer; flex: none; display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--blue), var(--violet)); box-shadow: 0 4px 16px rgba(10,132,255,.45);
+    transition: transform .3s var(--spring); }
+  .mic:active { transform: scale(.88); }
+  .mic svg { width: 18px; height: 18px; fill: #fff; }
+
+  /* iOS-style permission sheet */
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.35); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    opacity: 0; pointer-events: none; transition: opacity .3s var(--ease); }
+  .scrim.on { opacity: 1; pointer-events: auto; }
+  .alert { position: fixed; left: 50%; bottom: 24px; width: min(92vw, 380px); transform: translate(-50%, 140%);
+    border-radius: 22px; background: var(--glass-strong); border: 1px solid var(--hair);
+    backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%);
+    transition: transform .55s var(--spring); overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+  .alert.on { transform: translate(-50%, 0); }
+  .alert .body { padding: 20px 20px 16px; text-align: center; }
+  .alert .icon { width: 46px; height: 46px; border-radius: 13px; margin: 0 auto 10px; display: grid; place-items: center; font-size: 24px;
+    background: linear-gradient(135deg, var(--orange), var(--pink)); }
+  .alert h3 { margin: 0 0 4px; font-size: 17px; font-weight: 600; }
+  .alert p { margin: 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+  .alert .timer { height: 3px; background: rgba(255,255,255,.1); }
+  .alert .timer i { display: block; height: 100%; background: var(--orange); transform-origin: left; }
+  .alert .btns { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--hair); }
+  .alert button { height: 50px; border: 0; background: none; color: var(--blue); font: 600 17px var(--font); cursor: pointer; }
+  .alert button + button { border-left: 1px solid var(--hair); }
+  .alert button.deny { color: var(--red); font-weight: 400; }
+  .alert button:active { background: rgba(255,255,255,.06); }
+  .alert button:focus { outline: none; }
+  .alert button:focus-visible { background: rgba(255,255,255,.08); }
+
+  .toast { position: fixed; top: 58px; left: 50%; transform: translate(-50%, -20px); opacity: 0; padding: 10px 16px; border-radius: 16px;
+    background: var(--glass-strong); border: 1px solid var(--hair); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+    font-size: 14px; font-weight: 500; transition: all .45s var(--spring); pointer-events: none; max-width: 90vw; }
+  .toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+  /* Hide the idle hint once there is a conversation on screen */
+  .caption:not(:empty) ~ .chips:empty { display: none; }
+  .stage.has-caption .hint { display: none; }
+  .stage > * { flex-shrink: 0; }  /* never squeeze text; the orb makes room instead */
+  .orb-wrap { transition: transform .5s var(--spring), width .6s var(--spring); }
+  .stage.has-caption .orb-wrap { width: min(52vw, 210px, 28vh); }
+
+  /* Short windows: smaller orb, shorter captions */
+  @media (max-height: 760px) {
+    .orb-wrap { width: min(60vw, 240px, 34vh); }
+    .caption .jarvis { -webkit-line-clamp: 2; font-size: 17px; }
+  }
+
+  /* Desktop: orb on the left, conversation on the right */
+  @media (min-width: 860px) {
+    .app { display: grid; grid-template-columns: 1fr minmax(340px, 400px); grid-template-rows: auto 1fr;
+      column-gap: 24px; align-items: stretch; padding: 18px 24px; }
+    .island { grid-column: 1 / -1; justify-self: center; }
+    .stage { grid-row: 2; }
+    .sheet { grid-row: 2; grid-column: 2; max-height: none; height: calc(100vh - 90px); align-self: end; }
+    .sheet.collapsed { max-height: none; }
+    .grabber { display: none; }
+    .log { flex: 1; padding-top: 14px; }
+    .orb-wrap, .stage.has-caption .orb-wrap { width: min(36vw, 340px, 46vh); }
+  }
+
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+</style>
+</head>
+<body>
+<canvas id="space" aria-hidden="true"></canvas>
+<div class="nebula" aria-hidden="true"></div>
+
+<main class="app">
+  <div class="island" id="island" data-state="sleeping" role="status" aria-live="polite">
+    <span class="dot"></span><span id="status">Say "Hey Jarvis"</span>
+  </div>
+
+  <section class="stage">
+    <div class="orb-wrap" id="orbBtn" role="button" aria-label="Tap to talk" tabindex="0">
+      <canvas id="orb"></canvas>
+    </div>
+    <div class="hint" id="hint">Tap the orb or say "Hey Jarvis"</div>
+    <div class="caption" id="caption" aria-live="polite"></div>
+    <div class="chips" id="chips"></div>
+  </section>
+
+  <section class="sheet" id="sheet">
+    <div class="grabber" id="grabber" title="Show or hide the conversation"></div>
+    <div class="log" id="log"><div class="empty" id="empty">Your conversation will appear here.</div></div>
+    <form class="composer" id="composer" autocomplete="off">
+      <input class="field" id="field" placeholder="Type a message…" dir="auto" aria-label="Message">
+      <button class="mic" type="button" id="micBtn" aria-label="Talk">
+        <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2Z"/></svg>
+      </button>
+    </form>
+  </section>
+</main>
+
+<div class="scrim" id="scrim"></div>
+<div class="alert" id="alert" role="alertdialog" aria-labelledby="alertTitle">
+  <div class="body">
+    <div class="icon">🔐</div>
+    <h3 id="alertTitle">Allow Jarvis to continue?</h3>
+    <p id="alertText"></p>
+  </div>
+  <div class="timer"><i id="alertTimer"></i></div>
+  <div class="btns">
+    <button class="deny" id="denyBtn">Don't Allow</button>
+    <button id="allowBtn">Allow</button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const token = new URLSearchParams(location.search).get("token") || "";
+const $ = (id) => document.getElementById(id);
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------------------------------------------------------------- starfield */
+const space = $("space"), sctx = space.getContext("2d");
+let stars = [];
+function sizeSpace() {
+  const dpr = devicePixelRatio || 1;
+  space.width = innerWidth * dpr; space.height = innerHeight * dpr;
+  sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  stars = Array.from({ length: Math.round(innerWidth * innerHeight / 2600) }, () => ({
+    x: Math.random() * innerWidth, y: Math.random() * innerHeight,
+    r: Math.random() * 1.1 + .2, p: Math.random() * Math.PI * 2, s: Math.random() * .6 + .2, v: Math.random() * .06 + .01,
+  }));
+}
+addEventListener("resize", sizeSpace); sizeSpace();
+
+/* ---------------------------------------------------------------------- orb */
+const orb = $("orb"), octx = orb.getContext("2d");
+const STATES = {
+  sleeping:  { amp: .035, speed: .35, scale: .80, glow: .45, swirl: 0 },
+  idle:      { amp: .05,  speed: .6,  scale: .90, glow: .65, swirl: 0 },
+  listening: { amp: .06,  speed: 1.1, scale: .96, glow: .9,  swirl: 0 },
+  thinking:  { amp: .11,  speed: 2.4, scale: .90, glow: .85, swirl: 1 },
+  speaking:  { amp: .08,  speed: 1.3, scale: .98, glow: 1,   swirl: 0 },
+  error:     { amp: .03,  speed: .5,  scale: .85, glow: .5,  swirl: 0 },
+};
+let state = "sleeping", level = 0, levelSmooth = 0, voiceEnv = 0, voiceLevelAt = 0, assistantName = "Jarvis";
+const cur = { ...STATES.sleeping };
+function sizeOrb() {
+  const dpr = devicePixelRatio || 1, r = orb.getBoundingClientRect();
+  orb.width = r.width * dpr; orb.height = r.height * dpr; octx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+addEventListener("resize", sizeOrb); sizeOrb();
+new ResizeObserver(sizeOrb).observe(orb);  // the orb also resizes when captions appear
+
+const LAYERS = [
+  { c: ["#5ac8fa", "#0a5cff"], k: [3, 5, 7], o: 0 },
+  { c: ["#bf5af2", "#3a2fd6"], k: [2, 4, 6], o: 2.1 },
+  { c: ["#ff5fb0", "#8e2de2"], k: [4, 3, 5], o: 4.2 },
+];
+
+function blob(cx, cy, R, t, layer, amp, swirlRot) {
+  const N = 120;
+  octx.beginPath();
+  for (let i = 0; i <= N; i++) {
+    const th = (i / N) * Math.PI * 2;
+    const [a, b, c] = layer.k;
+    const n = Math.sin(a * th + t * 1.0 + layer.o) * .5
+            + Math.sin(b * th - t * 1.3 + layer.o * 1.7) * .3
+            + Math.sin(c * th + t * 0.7 + layer.o * .5) * .2;
+    const r = R * (1 + amp * n);
+    const x = cx + Math.cos(th + swirlRot) * r, y = cy + Math.sin(th + swirlRot) * r;
+    i ? octx.lineTo(x, y) : octx.moveTo(x, y);
+  }
+  const g = octx.createRadialGradient(cx - R * .3, cy - R * .35, R * .05, cx, cy, R * 1.1);
+  g.addColorStop(0, layer.c[0] + "e6"); g.addColorStop(.55, layer.c[1] + "99"); g.addColorStop(1, layer.c[1] + "00");
+  octx.fillStyle = g; octx.fill();
+}
+
+let last = performance.now(), t = 0;
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  const target = STATES[state] || STATES.idle;
+  for (const k in target) cur[k] += (target[k] - cur[k]) * Math.min(1, dt * 4);
+  levelSmooth += (level - levelSmooth) * Math.min(1, dt * 12);
+  level *= Math.pow(.02, dt);                       // decay when no new level arrives
+  if (state === "speaking" && now - voiceLevelAt < 400) {  // real loudness of the voice being played
+    voiceEnv += (levelSmooth * 1.6 - voiceEnv) * Math.min(1, dt * 14);
+  } else if (state === "speaking") {                // no levels (Windows voice): syllable-like envelope
+    voiceEnv += ((Math.random() < .12 ? .6 + Math.random() * .4 : voiceEnv * .82) - voiceEnv) * Math.min(1, dt * 10);
+  } else voiceEnv *= Math.pow(.05, dt);
+  t += dt * cur.speed * (reduced ? .3 : 1);
+
+  // stars
+  sctx.clearRect(0, 0, innerWidth, innerHeight);
+  for (const s of stars) {
+    s.y -= s.v * (1 + cur.swirl * 3); if (s.y < -2) { s.y = innerHeight + 2; s.x = Math.random() * innerWidth; }
+    const a = .25 + .55 * (.5 + .5 * Math.sin(now / 1000 * s.s + s.p));
+    sctx.fillStyle = `rgba(255,255,255,${a})`; sctx.beginPath(); sctx.arc(s.x, s.y, s.r, 0, 6.283); sctx.fill();
+  }
+
+  // orb
+  const w = orb.clientWidth, h = orb.clientHeight, cx = w / 2, cy = h / 2;
+  const react = state === "listening" ? levelSmooth : Math.min(1, voiceEnv);
+  const R = Math.min(w, h) * .3 * (cur.scale + react * .22 + Math.sin(now / 900) * .012);
+  const amp = cur.amp + react * .22;
+  octx.clearRect(0, 0, w, h);
+
+  const glow = octx.createRadialGradient(cx, cy, R * .4, cx, cy, Math.min(R * 1.9, Math.min(w, h) / 2));
+  glow.addColorStop(0, `rgba(90,140,255,${.35 * cur.glow})`);
+  glow.addColorStop(.5, `rgba(170,90,240,${.14 * cur.glow})`);
+  glow.addColorStop(1, "rgba(0,0,0,0)");
+  octx.fillStyle = glow; octx.fillRect(0, 0, w, h);
+
+  octx.globalCompositeOperation = "screen";
+  LAYERS.forEach((L, i) => blob(cx, cy, R * (1 - i * .06), t + i, L, amp, cur.swirl * t * (i % 2 ? -.6 : .8)));
+  // bright core
+  const core = octx.createRadialGradient(cx - R * .28, cy - R * .32, 0, cx - R * .1, cy - R * .1, R * .62);
+  core.addColorStop(0, `rgba(255,255,255,${.42 + react * .25})`); core.addColorStop(.5, "rgba(220,235,255,.10)"); core.addColorStop(1, "rgba(255,255,255,0)");
+  octx.fillStyle = core; octx.beginPath(); octx.arc(cx, cy, R, 0, 6.283); octx.fill();
+  octx.globalCompositeOperation = "source-over";
+
+  // thinking ring
+  if (cur.swirl > .05) {
+    octx.lineWidth = 2; octx.lineCap = "round";
+    for (let i = 0; i < 3; i++) {
+      const a0 = t * (1.6 + i * .4) + i * 2.1;
+      octx.strokeStyle = `rgba(${i ? "191,90,242" : "100,210,255"},${.55 * cur.swirl})`;
+      octx.beginPath(); octx.arc(cx, cy, R * (1.28 + i * .09), a0, a0 + 1.1); octx.stroke();
+    }
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ------------------------------------------------------------------ UI state */
+const LABELS = { sleeping: 'Say "Hey Jarvis"', idle: "Ready", listening: "Listening…", thinking: "Thinking…",
+                 speaking: "Speaking", error: "Something went wrong" };
+const TOOL = {
+  open_app: ["🚀", "Opening app"], open_website: ["🌐", "Opening website"], show_google_results: ["🔎", "Showing Google results"],
+  close_browser_tab: ["🗙", "Closing tab"],
+  read_web_page: ["📖", "Reading page"], search_files: ["🗂️", "Searching files"], open_file_or_folder: ["📂", "Opening"],
+  draft_message: ["✉️", "Drafting message"], media_control: ["🔊", "Media"], lock_screen: ["🔒", "Locking screen"],
+  list_running_apps: ["🪟", "Checking apps"], close_app: ["✖️", "Closing app"], read_clipboard: ["📋", "Reading clipboard"],
+  copy_to_clipboard: ["📋", "Copying"], set_reminder: ["⏰", "Setting reminder"], system_info: ["💻", "System info"],
+  write_note: ["📝", "Writing note"], read_file: ["📄", "Reading file"], list_files: ["🗂️", "Listing files"],
+  delete_file: ["🗑️", "Deleting"], look_at_screen: ["👁️", "Looking at screen"], ask_claude: ["🧠", "Asking Claude"],
+  code_task: ["👩‍💻", "Claude coding"], remember: ["🧠", "Remembering"], recall: ["🧠", "Recalling"],
+  forget: ["🧹", "Forgetting"], db_add: ["🗃️", "Saving to your database"], db_find: ["🗃️", "Checking your database"],
+  db_update: ["🗃️", "Updating your database"], db_delete: ["🗃️", "Removing from your database"],
+  search_web: ["🌍", "Researching in the background"], set_preference: ["⚙️", "Updating settings"], go_to_sleep: ["💤", "Pausing"],
+  restart_yourself: ["🔄", "Restarting"], improve_myself: ["🛠️", "Improving myself"],
+  my_activity: ["🧭", "Checking your activity"], whatsapp_message: ["💬", "WhatsApp"],
+  whatsapp_type: ["💬", "Typing in WhatsApp"], whatsapp_send: ["💬", "Sending on WhatsApp"],
+  whatsapp_send_now: ["💬", "Sending on WhatsApp"], list_windows: ["🪟", "Looking at your windows and tabs"],
+  switch_to: ["🔀", "Switching"], click_on: ["🖱️", "Clicking"], type_text: ["⌨️", "Typing"],
+  press_keys: ["⌨️", "Pressing keys"],
+};
+
+function setName(name) {
+  if (!name) return;
+  assistantName = name; document.title = name;
+  LABELS.idle = `${name} is ready`;
+  $("alertTitle").textContent = `Allow ${name} to continue?`;
+  if (state === "idle") $("status").textContent = LABELS.idle;
+}
+
+function setState(s) {
+  const prev = state; state = s; $("island").dataset.state = s; $("status").textContent = LABELS[s] || s;
+  $("hint").style.opacity = s === "sleeping" || s === "idle" ? 1 : 0;
+  if (s === "listening" || (s === "thinking" && prev !== "thinking")) $("chips").replaceChildren();
+}
+
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+function addBubble(cls, text) {
+  $("empty")?.remove();
+  const b = el("div", "bubble " + cls, text); b.dir = "auto";
+  $("log").append(b); $("log").scrollTop = $("log").scrollHeight;
+}
+
+function caption(you, jarvis) {
+  const c = $("caption"); c.replaceChildren();
+  document.querySelector(".stage").classList.toggle("has-caption", !!(you || jarvis));
+  if (you) { const y = el("div", "you fade-in", you); y.dir = "auto"; c.append(y); }
+  if (jarvis) { const j = el("div", "jarvis fade-in", jarvis); j.dir = "auto"; j.style.animationDelay = ".1s"; c.append(j); }
+}
+
+function addChip(name, args) {
+  const [icon, label] = TOOL[name] || ["⚙️", name.replaceAll("_", " ")];
+  const detail = String(args && (args.name || args.query || args.url || args.action || "") || "").replaceAll("_", " ").slice(0, 32);
+  const chip = el("span", "chip"); chip.append(el("span", "spin"), el("span", null, `${icon} ${label}${detail ? " · " + detail : ""}`));
+  $("chips").append(chip);
+  setTimeout(() => { chip.classList.add("done"); chip.firstChild.remove(); }, 1400);
+}
+
+function toast(text, ms = 3500) {
+  const t = $("toast"); t.textContent = text; t.classList.add("on");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), ms);
+}
+
+/* ---------------------------------------------------------------- approvals */
+let approvalId = null, approvalTimer = null;
+function showApproval(ev) {
+  approvalId = ev.id;
+  const [icon, label] = TOOL[ev.action === "media_key" ? "media_control" : ev.action] || ["⚙️", ev.action];
+  $("alertTitle").textContent = `Allow ${assistantName}: ${label.toLowerCase()}?`;
+  $("alertText").textContent = Object.entries(ev.args || {}).map(([k, v]) => `${k}: ${v}`).join(" · ");
+  const bar = $("alertTimer"); bar.style.transition = "none"; bar.style.transform = "scaleX(1)";
+  requestAnimationFrame(() => { bar.style.transition = `transform ${ev.seconds || 45}s linear`; bar.style.transform = "scaleX(0)"; });
+  clearTimeout(approvalTimer); approvalTimer = setTimeout(hideApproval, (ev.seconds || 45) * 1000);
+  $("scrim").classList.add("on"); $("alert").classList.add("on"); $("allowBtn").focus();
+}
+function hideApproval() { approvalId = null; $("scrim").classList.remove("on"); $("alert").classList.remove("on"); }
+async function decide(approve) {
+  if (!approvalId) return;
+  const id = approvalId; hideApproval();
+  await post("/api/approve", { id, approve });
+  addBubble("sys", approve ? "You allowed it" : "You didn't allow it");
+}
+$("allowBtn").onclick = () => decide(true);
+$("denyBtn").onclick = () => decide(false);
+
+/* ----------------------------------------------------------------- commands */
+async function post(path, body) {
+  try {
+    const r = await fetch(path, { method: "POST", headers: { "X-Jarvis-Token": token, "Content-Type": "application/json" },
+                                  body: JSON.stringify(body || {}) });
+    return r.ok;
+  } catch { toast("Jarvis isn't running"); return false; }
+}
+const talk = () => { setState("listening"); post("/api/talk"); };
+$("orbBtn").onclick = talk; $("micBtn").onclick = talk;
+$("orbBtn").onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); talk(); } };
+$("composer").onsubmit = (e) => {
+  e.preventDefault(); const text = $("field").value.trim(); if (!text) return;
+  $("field").value = ""; post("/api/text", { text });
+};
+$("grabber").onclick = () => $("sheet").classList.toggle("collapsed");
+addEventListener("keydown", (e) => {
+  if (!approvalId) return;
+  if (e.key.toLowerCase() === "y") decide(true);
+  if (e.key.toLowerCase() === "n" || e.key === "Escape") decide(false);
+});
+
+/* ------------------------------------------------------------------- events */
+let lastYou = "";
+function handle(ev) {
+  switch (ev.kind) {
+    case "state": setState(ev.state); break;
+    case "level":
+      level = Math.max(level, Math.min(1, ev.value));
+      if (ev.source === "voice") voiceLevelAt = performance.now();
+      break;
+    case "profile": setName(ev.assistant_name); break;
+    case "heard": lastYou = ev.text; caption(ev.text, ""); addBubble("me", ev.text); break;
+    case "tool": addChip(ev.name, ev.args); break;
+    case "screen": addChip("look_at_screen"); break;
+    case "answer":
+      caption(lastYou, ev.text); addBubble("ai", ev.text);
+      if (ev.seconds) addBubble("sys", `${ev.seconds.toFixed(1)} s`);
+      break;
+    case "approval": showApproval(ev); break;
+    case "approval_done": if (ev.id === approvalId) hideApproval(); break;
+    case "error": setState("error"); addBubble("err", ev.text); toast(ev.text.split("\n")[0], 5000); break;
+    case "reminder": toast("⏰ " + ev.text, 8000); addBubble("ai", "⏰ " + ev.text); break;
+    case "info": addBubble("sys", ev.text); break;
+  }
+}
+
+function connect() {
+  const src = new EventSource("/events?token=" + encodeURIComponent(token));
+  src.onmessage = (m) => { try { handle(JSON.parse(m.data)); } catch (e) { console.error(e); } };
+  src.onerror = () => { setState("error"); $("status").textContent = "Reconnecting…"; };
+  src.onopen = () => { if (state === "error") setState("idle"); };
+}
+connect();
+</script>
+</body>
+</html>

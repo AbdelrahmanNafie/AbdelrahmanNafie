@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jarvis Control</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --line: #262b36; --text: #e7e9ee; --muted: #8b93a5;
+    --ears: #4f9cf9; --brain: #c58af9; --policy: #f5b84a; --hands: #3ecf8e; --human: #f7768e;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+           padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  h1 { font-size: 17px; margin: 0; letter-spacing: .3px; }
+  main { max-width: 980px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+  .pipeline { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .stage { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+           padding: 10px; text-align: center; transition: box-shadow .2s, border-color .2s; }
+  .stage b { display: block; font-size: 14px; }
+  .stage small { color: var(--muted); font-size: 12px; }
+  .stage.active { box-shadow: 0 0 0 2px var(--c) inset; border-color: var(--c); }
+  .stage .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c);
+                display: inline-block; margin-right: 6px; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  section h2 { margin: 0 0 10px; font-size: 13px; color: var(--muted);
+               text-transform: uppercase; letter-spacing: .8px; }
+  .approval { border: 1px solid var(--human); border-radius: 10px; padding: 12px; margin-bottom: 8px; }
+  .approval code { word-break: break-all; }
+  .row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  button { border: 0; border-radius: 8px; padding: 9px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+  .ok { background: var(--hands); color: #04140c; }
+  .no { background: #2a2f3b; color: var(--text); }
+  .kill { background: var(--human); color: #1b0509; }
+  .kill.off { background: #2a2f3b; color: var(--text); }
+  .empty { color: var(--muted); font-size: 14px; }
+  ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  li { display: grid; grid-template-columns: 64px 128px 1fr; gap: 8px; align-items: baseline;
+       padding: 6px 8px; border-radius: 8px; background: #12151b; }
+  li time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .tag { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--c); }
+  li .sum { overflow-wrap: anywhere; }
+  li .sub { display: block; color: var(--muted); font-size: 13px; direction: auto; }
+  .reply { color: var(--brain); font-weight: 600; }
+  @media (max-width: 600px) {
+    .pipeline { grid-template-columns: repeat(2, 1fr); }
+    li { grid-template-columns: 52px 1fr; }
+    li time { grid-row: span 2; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚡ Jarvis Control</h1>
+  <button id="kill" class="kill off" type="button">Kill switch: off</button>
+</header>
+<main>
+  <div class="pipeline" aria-label="pipeline">
+    <div class="stage" data-stage="ears" style="--c:var(--ears)"><b><span class="dot"></span>Ears</b><small>Gemini · speech → English</small></div>
+    <div class="stage" data-stage="brain" style="--c:var(--brain)"><b><span class="dot"></span>Brain</b><small>Claude · plan &amp; verify</small></div>
+    <div class="stage" data-stage="policy" style="--c:var(--policy)"><b><span class="dot"></span>Policy</b><small>rules · allow / ask / deny</small></div>
+    <div class="stage" data-stage="hands" style="--c:var(--hands)"><b><span class="dot"></span>Hands</b><small>local actions</small></div>
+  </div>
+
+  <section>
+    <h2>Waiting for your approval</h2>
+    <div id="pending"><p class="empty">Nothing waiting.</p></div>
+  </section>
+
+  <section>
+    <h2>Live timeline</h2>
+    <ol id="events"><li class="empty" style="display:block">No activity yet. Speak or type a command.</li></ol>
+  </section>
+</main>
+<script>
+const token = new URLSearchParams(location.search).get("token") || "";
+const COLORS = { ears: "--ears", brain: "--brain", policy: "--policy", hands: "--hands", human: "--human" };
+let lastId = 0, firstLoad = true;
+
+async function api(path, body) {
+  const r = await fetch(path + (body ? "" : (path.includes("?") ? "&" : "?") + "token=" + token), {
+    method: body ? "POST" : "GET",
+    headers: { "X-Jarvis-Token": token, "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return r.json();
+}
+
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+function renderEvent(ev) {
+  const li = el("li");
+  li.style.setProperty("--c", `var(${COLORS[ev.stage] || "--muted"})`);
+  li.append(el("time", null, new Date(ev.ts * 1000).toLocaleTimeString()));
+  const tag = el("span", "tag", ev.stage);
+  tag.append(el("span", "sub", ev.kind));
+  li.append(tag);
+  const sum = el("span", "sum" + (ev.kind === "reply" ? " reply" : ""), ev.summary);
+  if (ev.kind === "understood" && ev.data.original) {
+    sum.append(el("span", "sub", `“${ev.data.original}” (${ev.data.language})`));
+  }
+  li.append(sum);
+  return li;
+}
+
+function flash(stage) {
+  const s = document.querySelector(`.stage[data-stage="${stage}"]`);
+  if (!s) return;
+  s.classList.add("active");
+  clearTimeout(s._t); s._t = setTimeout(() => s.classList.remove("active"), 1800);
+}
+
+function renderPending(list) {
+  const box = document.getElementById("pending");
+  box.replaceChildren();
+  if (!list.length) { box.append(el("p", "empty", "Nothing waiting.")); return; }
+  for (const p of list) {
+    const card = el("div", "approval");
+    card.append(el("div", null, `#${p.id} wants to run:`));
+    card.append(el("code", null, `${p.action}(${JSON.stringify(p.args)})`));
+    const row = el("div", "row");
+    const yes = el("button", "ok", "Approve"); yes.type = "button";
+    const no = el("button", "no", "Reject"); no.type = "button";
+    yes.onclick = () => api("/api/approve", { id: p.id }).then(poll);
+    no.onclick = () => api("/api/reject", { id: p.id }).then(poll);
+    row.append(yes, no); card.append(row); box.append(card);
+  }
+}
+
+async function poll() {
+  try {
+    const s = await api(`/api/state?after=${lastId}`);
+    const list = document.getElementById("events");
+    if (s.events.length && list.querySelector(".empty")) list.replaceChildren();
+    for (const ev of s.events) {
+      list.prepend(renderEvent(ev));
+      if (!firstLoad) flash(ev.stage);
+      lastId = ev.id;
+    }
+    firstLoad = false;
+    renderPending(s.pending);
+    const k = document.getElementById("kill");
+    k.textContent = `Kill switch: ${s.paused ? "ON" : "off"}`;
+    k.classList.toggle("off", !s.paused);
+    k.dataset.paused = s.paused;
+  } catch (e) { /* server restarting; retry next tick */ }
+}
+
+document.getElementById("kill").onclick = (e) =>
+  api(e.currentTarget.dataset.paused === "true" ? "/api/resume" : "/api/pause", {}).then(poll);
+
+poll(); setInterval(poll, 1000);
+</script>
+</body>
+</html>
