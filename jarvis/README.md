@@ -20,7 +20,7 @@ flowchart LR
 
 | Role | Who | Can it touch your laptop? |
 |---|---|---|
-| Ears | Gemini (`gemini-3.8-flash`, configurable) | **No.** Text in, text out. |
+| Ears | Gemini (`gemini-3.5-flash` + backups, configurable) | **No.** Text in, text out. |
 | Brain | Claude | **Only** through the 7 Jarvis tools. Built-in shell and file tools are disabled. |
 | Policy | `jarvis/policy.py` | Decides. Unknown action → deny. Delete → human approval. Kill switch → reads only. |
 | Hands | `jarvis/actions.py` | Paths are confined to allowed folders, apps come from an allowlist, and nothing runs through a shell. |
@@ -55,7 +55,7 @@ python -m jarvis.doctor                          # checks every part, step by st
 python -m jarvis.dashboard                       # open the printed link
 python -m jarvis.bridge --text "افتح النوت باد"   # typed Arabic
 python -m jarvis.bridge --mic 5                  # speak for 5 seconds
-pytest                                           # 38 tests
+pytest                                           # 44 tests
 ```
 
 ### Jarvis mode: "Hey Jarvis" and spoken replies
@@ -69,8 +69,8 @@ python -m jarvis.assistant --voice gemini             # natural Gemini voice (de
 ```
 
 - The wake word runs **offline** (openWakeWord, ready-made "Hey Jarvis" model). No audio leaves the laptop until it hears that phrase.
-- Recording stops by itself about 1.2 s after you stop talking, with a 30 s maximum.
-- If a Gemini model is busy (503), Jarvis tries the backup models in `JARVIS_GEMINI_FALLBACKS` instead of waiting.
+- High beep = speak now, low beep = stopped listening. Recording stops about 2 s after you finish talking (30 s maximum).
+- If a Gemini model is slow or busy, Jarvis asks a backup model in parallel and uses whichever answers first. The winner is tried first next time.
 
 ### Use the same hands inside Claude Desktop (typing)
 
@@ -87,8 +87,8 @@ Install [Tailscale](https://tailscale.com) on the laptop and the phone. Start th
 | `JARVIS_HOME` | `~/.jarvis` | Database, workspace, trash, tokens |
 | `JARVIS_ALLOWED_DIRS` | *(none)* | Extra folders the hands may access, separated by `;` |
 | `JARVIS_HOME/apps.json` | notepad, calculator, … | Spoken name → executable allowlist |
-| `JARVIS_GEMINI_MODEL` | `gemini-3.8-flash` | Ears model |
-| `JARVIS_GEMINI_FALLBACKS` | `gemini-3.5-flash,gemini-3.5-flash-lite` | Tried in order when the ears model is busy |
+| `JARVIS_GEMINI_MODEL` | `gemini-3.5-flash` | Ears model (tried first) |
+| `JARVIS_GEMINI_FALLBACKS` | `gemini-3.5-flash-lite,gemini-3.8-flash` | Also asked in parallel if the first model is slow (>4 s) or busy; the fastest answer wins |
 | `JARVIS_VOICE` | `windows` | Spoken replies: `windows`, `gemini` or `off` |
 | `JARVIS_CLAUDE_MODEL` | `sonnet` | Brain model alias (`opus` is stronger but uses your plan's limit faster) |
 | `JARVIS_APPROVAL_WAIT_S` | `45` | How long a dangerous action waits for your click |

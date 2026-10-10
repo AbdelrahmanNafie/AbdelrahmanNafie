@@ -94,3 +94,58 @@ def test_timeout_falls_back_then_reports_clearly():
     with pytest.raises(EarsError, match="did not answer"):
         understand(text="افتح", model="a", fallbacks=("b", "c"), client=SimpleNamespace(models=Models()))
     assert tried == ["a", "b", "c"]
+
+
+def _models(behaviour):
+    """behaviour: model name -> callable(model) returning Heard or raising."""
+    tried = []
+
+    class Models:
+        def generate_content(self, *, model, **_):
+            tried.append(model)
+            return SimpleNamespace(parsed=behaviour[model](model), text="")
+
+    return SimpleNamespace(models=Models()), tried
+
+
+def test_slow_model_is_raced_and_fast_answer_wins():
+    import time
+
+    def slow(_):
+        time.sleep(2)
+        return Heard(original="x", language="english", english="slow")
+
+    def fast(_):
+        return Heard(original="x", language="english", english="fast")
+
+    client, tried = _models({"slow": slow, "fast": fast})
+    started = time.monotonic()
+    h = understand(text="افتح", model="slow", fallbacks=("fast",), client=client, hedge_after_s=0.1)
+    assert h.english == "fast" and time.monotonic() - started < 1.0
+    assert tried == ["slow", "fast"]
+
+
+def test_model_that_answered_goes_first_next_time():
+    ok = lambda m: Heard(original="x", language="english", english=m)  # noqa: E731
+
+    def busy(_):
+        from google.genai import errors
+        raise errors.ServerError(503, {"error": {"code": 503, "status": "UNAVAILABLE", "message": "busy"}})
+
+    client, tried = _models({"a": busy, "b": ok})
+    understand(text="افتح", model="a", fallbacks=("b",), client=client)
+    tried.clear()
+    assert understand(text="افتح", model="a", fallbacks=("b",), client=client).english == "b"
+    assert tried == ["b"]
+
+
+def test_thinking_is_turned_off_for_speed():
+    seen = {}
+
+    class Models:
+        def generate_content(self, *, model, contents, config):
+            seen["thinking"] = config.thinking_config
+            return SimpleNamespace(parsed=Heard(original="x", language="english", english="ok"), text="")
+
+    understand(text="افتح", model="m", client=SimpleNamespace(models=Models()))
+    assert seen["thinking"] is not None

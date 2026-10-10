@@ -14,6 +14,19 @@ def _run(detector, levels):
     return None
 
 
+def test_default_waits_two_seconds_of_silence():
+    d = voice.SilenceDetector(noise_floor=200)
+    levels = [3000] * 10 + [100] * 15 + [3000] * 10 + [100] * 30  # 1.5 s thinking pause
+    assert _run(d, levels) == 10 + 15 + 10 + 19
+
+
+def test_quiet_speaker_is_still_heard():
+    d = voice.SilenceDetector(noise_floor=150)
+    assert d.threshold == 350
+    d.feed(400)
+    assert d.heard_speech
+
+
 def test_recording_stops_after_silence_following_speech():
     d = voice.SilenceDetector(noise_floor=200, silence_s=1.0)
     stop = _run(d, [100] * 5 + [3000] * 20 + [100] * 30)
@@ -32,8 +45,8 @@ def test_gives_up_when_nobody_speaks():
 
 
 def test_threshold_adapts_to_noisy_room():
-    assert voice.SilenceDetector(noise_floor=1000).threshold == 2500
-    assert voice.SilenceDetector(noise_floor=10).threshold == 500
+    assert voice.SilenceDetector(noise_floor=1000).threshold == 2000
+    assert voice.SilenceDetector(noise_floor=10).threshold == 350
 
 
 def test_windows_voice_passes_text_on_stdin_not_command_line(monkeypatch):

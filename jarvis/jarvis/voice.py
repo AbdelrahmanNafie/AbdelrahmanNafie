@@ -1,6 +1,6 @@
 """Microphone, wake word and speaker.
 
-- record_until_silence: starts when you speak, stops ~1.2 s after you stop.
+- record_until_silence: starts when you speak, stops ~2 s after you stop.
 - WakeWord: local "Hey Jarvis" detector (openWakeWord); no audio leaves the laptop.
 - Speaker: says the reply out loud (Windows voice by default, Gemini voice optional).
 
@@ -42,16 +42,16 @@ class SilenceDetector:
     """Decides when an utterance is over, from a stream of loudness values (one per chunk)."""
 
     noise_floor: float = 300.0
-    silence_s: float = 1.2  # this much quiet after speech ends the recording
+    silence_s: float = 2.0  # this much quiet after speech ends the recording (natural pauses are shorter)
     max_s: float = 30.0
-    no_speech_s: float = 6.0  # give up if nothing is said at all
+    no_speech_s: float = 8.0  # give up if nothing is said at all
     _speech_started: bool = False
     _quiet: float = 0.0
     _elapsed: float = 0.0
 
     @property
     def threshold(self) -> float:
-        return max(self.noise_floor * 2.5, 500.0)
+        return max(self.noise_floor * 2.0, 350.0)
 
     @property
     def heard_speech(self) -> bool:
@@ -93,7 +93,9 @@ def record_until_silence(*, max_s: float = 30.0, on_start=None) -> bytes | None:
         calib = [stream.read(CHUNK)[0][:, 0] for _ in range(4)]
         detector = SilenceDetector(noise_floor=float(np.median([level(c) for c in calib])), max_s=max_s)
         if on_start:
-            on_start()
+            on_start()  # e.g. the "speak now" beep: played only once the mic is really ready
+            for _ in range(3):  # drop ~0.24 s so the beep itself isn't taken for your voice
+                stream.read(CHUNK)
         while True:
             chunk = stream.read(CHUNK)[0][:, 0].copy()
             frames.append(chunk)
@@ -132,12 +134,12 @@ class WakeWord:
                     return float(score)
 
 
-def chime() -> None:
-    """Short 'I'm listening' beep."""
+def chime(kind: str = "start") -> None:
+    """High beep = speak now; low beep = stopped listening."""
     if sys.platform == "win32":
         import winsound
 
-        winsound.Beep(880, 120)
+        winsound.Beep(*((1046, 110) if kind == "start" else (523, 140)))
     else:
         print("\a", end="", flush=True)
 
@@ -178,9 +180,27 @@ class Speaker:
         if sys.platform != "win32":
             print(f"🔊 {text}")
             return
-        # Text goes in on stdin, never into the command line, so nothing in it can run as code.
+        sapi = self._sapi()
+        if sapi is not None:
+            sapi.Speak(text)  # direct call: no 1-2 s PowerShell start-up
+            return
+        # Fallback. Text goes in on stdin, never into the command line, so nothing in it can run as code.
         self.runner(["powershell", "-NoProfile", "-NonInteractive", "-Command", _WINDOWS_SAY],
                     input=text, text=True, encoding="utf-8", capture_output=True)
+
+    _sapi_voice = None
+
+    def _sapi(self):
+        if self.runner is not subprocess.run:  # tests inject a runner: use the PowerShell path
+            return None
+        if Speaker._sapi_voice is None:
+            try:
+                import win32com.client
+
+                Speaker._sapi_voice = win32com.client.Dispatch("SAPI.SpVoice")
+            except Exception:  # noqa: BLE001 — pywin32 missing: fall back to PowerShell
+                Speaker._sapi_voice = False
+        return Speaker._sapi_voice or None
 
     def _gemini_tts(self, text: str) -> bytes:
         from google import genai

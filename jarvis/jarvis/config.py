@@ -66,9 +66,9 @@ def load() -> Settings:
         allowed_roots=(workspace, *extra),
         db_path=home / "jarvis.db",
         apps=apps,
-        gemini_model=os.environ.get("JARVIS_GEMINI_MODEL", "gemini-3.8-flash"),
+        gemini_model=os.environ.get("JARVIS_GEMINI_MODEL", "gemini-3.5-flash"),
         gemini_fallbacks=tuple(m.strip() for m in os.environ.get(
-            "JARVIS_GEMINI_FALLBACKS", "gemini-3.5-flash,gemini-3.5-flash-lite").split(",") if m.strip()),
+            "JARVIS_GEMINI_FALLBACKS", "gemini-3.5-flash-lite,gemini-3.8-flash").split(",") if m.strip()),
         claude_model=os.environ.get("JARVIS_CLAUDE_MODEL", "sonnet"),
         approval_wait_s=float(os.environ.get("JARVIS_APPROVAL_WAIT_S", "45")),
     )

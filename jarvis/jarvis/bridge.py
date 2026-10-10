@@ -196,8 +196,12 @@ def _listen(args: argparse.Namespace, settings: config.Settings, store: Store) -
 
     if args.mic:
         print(f"🎙  Listening for up to {args.mic:g}s (stops when you stop talking)…", flush=True)
-    audio = voice.record_until_silence(max_s=args.mic or 30.0,
-                                       on_start=lambda: print("🎙  Speak now…", flush=True))
+    def ready() -> None:
+        print("🎙  Speak now (high beep). I stop 2 s after you finish (low beep).", flush=True)
+        voice.chime("start")
+
+    audio = voice.record_until_silence(max_s=args.mic or 30.0, on_start=ready)
+    voice.chime("stop")
     if audio is None:
         print("🤫 I didn't hear anything.")
         return None

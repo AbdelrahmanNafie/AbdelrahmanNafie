@@ -6,7 +6,10 @@ Gemini only transcribes and translates here. It does not plan, answer or act.
 from __future__ import annotations
 
 import os
+import queue
 import re
+import threading
+import time
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -55,23 +58,116 @@ class Heard(BaseModel):
     english: str = Field(description="Faithful English translation of the request")
 
 
-# Busy/overloaded/timeouts: worth trying the next model instead of waiting.
+# Busy/overloaded/timeouts: worth trying another model instead of waiting.
 _TRY_NEXT_MODEL = {404, 408, 429, 500, 502, 503, 504}
+HEDGE_AFTER_S = 4.0  # if the first model hasn't answered by then, start the next one in parallel
+OVERALL_TIMEOUT_S = 40.0
+_preferred: list[str] = []  # the model that answered last goes first next time
 
 
 def make_client():
-    """Gemini client that fails fast (no silent retries, 45 s timeout) so we can switch models."""
+    """Gemini client without silent retries; we race models ourselves instead."""
     from google import genai
     from google.genai import types
 
     if not os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
         raise EarsError("Set GEMINI_API_KEY to use Gemini for Arabic or audio input")
     return genai.Client(http_options=types.HttpOptions(
-        timeout=45_000, retry_options=types.HttpRetryOptions(attempts=1)))
+        timeout=int(OVERALL_TIMEOUT_S * 1000), retry_options=types.HttpRetryOptions(attempts=1)))
+
+
+def _transient(exc: Exception) -> bool:
+    import httpx
+    from google.genai import errors
+
+    if isinstance(exc, errors.APIError):
+        return exc.code in _TRY_NEXT_MODEL
+    return isinstance(exc, (httpx.TimeoutException, httpx.TransportError))
+
+
+def _ask_model(client, name: str, payload: list) -> Heard:
+    from google.genai import errors, types
+
+    base = dict(response_mime_type="application/json", response_schema=Heard, temperature=0)
+    # Transcribing needs no reasoning: skip "thinking" for speed. Some models
+    # reject this setting, so retry once without it.
+    try:
+        config = types.GenerateContentConfig(
+            **base, thinking_config=types.ThinkingConfig(thinking_level=types.ThinkingLevel.MINIMAL))
+        response = client.models.generate_content(model=name, contents=[EARS_PROMPT, *payload], config=config)
+    except errors.ClientError as exc:
+        if exc.code != 400 or "think" not in str(exc.message).lower():
+            raise
+        response = client.models.generate_content(
+            model=name, contents=[EARS_PROMPT, *payload], config=types.GenerateContentConfig(**base))
+    if isinstance(response.parsed, Heard):
+        return response.parsed
+    return Heard.model_validate_json(response.text)
+
+
+def _race(client, models: list[str], payload: list, *, hedge_after_s: float,
+          overall_s: float) -> tuple[str, Heard]:
+    """Start the first model; add the next one whenever the current ones are slow or fail.
+
+    Returns the first good answer. Uses daemon threads so a slow model never
+    delays the program from exiting.
+    """
+    results: queue.Queue = queue.Queue()
+    launched = 0
+
+    def launch() -> None:
+        nonlocal launched
+        name = models[launched]
+        launched += 1
+
+        def run() -> None:
+            try:
+                results.put((name, _ask_model(client, name, payload), None))
+            except Exception as exc:  # noqa: BLE001 — reported through the queue
+                results.put((name, None, exc))
+
+        threading.Thread(target=run, daemon=True).start()
+
+    deadline = time.monotonic() + overall_s
+    launch()
+    running, errors_seen = 1, []
+    while running or launched < len(models):
+        if not running:
+            launch()
+            running += 1
+        wait = min(hedge_after_s if launched < len(models) else overall_s, deadline - time.monotonic())
+        if wait <= 0:
+            break
+        try:
+            name, heard, exc = results.get(timeout=wait)
+        except queue.Empty:
+            if launched < len(models):
+                print(f"   (Gemini {models[launched - 1]} is slow; also asking {models[launched]})", flush=True)
+                launch()
+                running += 1
+            continue
+        running -= 1
+        if heard is not None:
+            return name, heard
+        errors_seen.append(exc)
+        if not _transient(exc):
+            raise exc  # bad key, no credits…: other models won't help
+        print(f"   (Gemini {name} unavailable: {_short(exc)})", flush=True)
+    if errors_seen:
+        raise errors_seen[-1]
+    import httpx
+
+    raise httpx.ReadTimeout(f"no Gemini model answered within {overall_s:.0f}s")
+
+
+def _short(exc: Exception) -> str:
+    code = getattr(exc, "code", None)
+    return f"{code}" if code else type(exc).__name__
 
 
 def understand(*, text: str | None = None, audio: bytes | None = None, mime_type: str = "audio/wav",
-               model: str = "gemini-3.8-flash", fallbacks: tuple[str, ...] = (), client=None) -> Heard:
+               model: str = "gemini-3.5-flash", fallbacks: tuple[str, ...] = (), client=None,
+               hedge_after_s: float = HEDGE_AFTER_S, overall_s: float = OVERALL_TIMEOUT_S) -> Heard:
     if (text is None) == (audio is None):
         raise ValueError("pass exactly one of text= or audio=")
 
@@ -83,35 +179,15 @@ def understand(*, text: str | None = None, audio: bytes | None = None, mime_type
 
     client = client or make_client()
     payload = [types.Part.from_bytes(data=audio, mime_type=mime_type)] if audio is not None else [text]
-    config = types.GenerateContentConfig(response_mime_type="application/json", response_schema=Heard,
-                                         temperature=0)
-    import httpx
-
-    models = [model, *(m for m in fallbacks if m and m != model)]
-    last: Exception | None = None
-    for i, name in enumerate(models):
-        nxt = f"; trying {models[i + 1]}" if i + 1 < len(models) else ""
-        try:
-            response = client.models.generate_content(model=name, contents=[EARS_PROMPT, *payload], config=config)
-        except errors.APIError as exc:
-            last = exc
-            if exc.code in _TRY_NEXT_MODEL and nxt:
-                print(f"   (Gemini {name} busy: {exc.code}{nxt})", flush=True)
-                continue
-            break
-        except (httpx.TimeoutException, httpx.TransportError) as exc:  # slow or dropped connection
-            last = exc
-            if nxt:
-                print(f"   (Gemini {name} did not answer in time{nxt})", flush=True)
-                continue
-            break
-        if isinstance(response.parsed, Heard):
-            return response.parsed
-        return Heard.model_validate_json(response.text)
-
-    if isinstance(last, errors.APIError):
-        hint = _HINTS.get(last.code, "Gemini returned an error; see the message above.")
-        raise EarsError(f"Gemini error {last.code} {last.status}: {last.message}\n"
-                        f"  key used: {_key_source()}\n  ➜ {hint}") from last
-    raise EarsError(f"Gemini did not answer ({type(last).__name__}). Your internet may be slow or Google "
-                    "is overloaded.\n  ➜ Check your connection and try again in a minute.") from last
+    models = list(dict.fromkeys(m for m in [*_preferred, model, *fallbacks] if m))
+    try:
+        name, heard = _race(client, models, payload, hedge_after_s=hedge_after_s, overall_s=overall_s)
+    except errors.APIError as exc:
+        hint = _HINTS.get(exc.code, "Gemini returned an error; see the message above.")
+        raise EarsError(f"Gemini error {exc.code} {exc.status}: {exc.message}\n"
+                        f"  key used: {_key_source()}\n  ➜ {hint}") from exc
+    except Exception as exc:  # timeouts / connection drops
+        raise EarsError(f"Gemini did not answer ({type(exc).__name__}). Your internet may be slow or Google "
+                        "is overloaded.\n  ➜ Check your connection and try again in a minute.") from exc
+    _preferred[:] = [name]
+    return heard

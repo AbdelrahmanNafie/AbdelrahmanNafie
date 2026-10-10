@@ -28,3 +28,12 @@ def launched():
 @pytest.fixture
 def gateway(settings, store, launched):
     return Gateway(settings, store, launcher=launched.append, poll_s=0.02)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_model_preference():
+    from jarvis import ears
+
+    ears._preferred.clear()
+    yield
+    ears._preferred.clear()

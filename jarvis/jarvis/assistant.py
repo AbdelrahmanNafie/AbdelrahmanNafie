@@ -28,6 +28,7 @@ def handle_one(settings: config.Settings, store: Store, speaker: voice.Speaker,
         speaker.say("I didn't hear anything.")
         return
     try:
+        print("💭 Understanding…", flush=True)
         heard = hear(settings, store, audio=audio)
     except EarsError as exc:
         print(f"❌ {exc}")
@@ -79,9 +80,13 @@ def main(argv: list[str] | None = None) -> int:
             print(f"✨ Heard the wake word ({score:.2f})", flush=True)
 
     def record() -> bytes | None:
-        voice.chime()
-        print("🎙  Listening…", flush=True)
-        return voice.record_until_silence()
+        def ready() -> None:
+            print("🎙  Speak now (high beep). I stop 2 s after you finish (low beep).", flush=True)
+            voice.chime("start")
+
+        audio = voice.record_until_silence(on_start=ready)
+        voice.chime("stop")
+        return audio
 
     print("Jarvis is ready. Stop with Ctrl+C.")
     speaker.say("Jarvis is ready.")
