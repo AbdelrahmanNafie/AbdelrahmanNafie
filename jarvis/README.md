@@ -55,7 +55,7 @@ python -m jarvis.doctor                          # checks every part, step by st
 python -m jarvis.dashboard                       # open the printed link
 python -m jarvis.bridge --text "افتح النوت باد"   # typed Arabic
 python -m jarvis.bridge --mic 5                  # speak for 5 seconds
-pytest                                           # 44 tests
+pytest                                           # 80 tests
 ```
 
 ### Jarvis mode: "Hey Jarvis" and spoken replies
@@ -71,6 +71,29 @@ python -m jarvis.assistant --voice gemini             # natural Gemini voice (de
 - The wake word runs **offline** (openWakeWord, ready-made "Hey Jarvis" model). No audio leaves the laptop until it hears that phrase.
 - High beep = speak now, low beep = stopped listening. Recording stops about 2 s after you finish talking (30 s maximum).
 - If a Gemini model is slow or busy, Jarvis asks a backup model in parallel and uses whichever answers first. The winner is tried first next time.
+
+### What Jarvis can do
+
+By default Gemini (the "quick brain") does light tasks itself in a few seconds, and hands heavy ones to Claude.
+
+| Say (Arabic or English) | Tool | Safety rule |
+|---|---|---|
+| "Open Chrome / VS Code / WhatsApp" | `open_app` | Only apps in your Start menu (or `apps.json`) |
+| "Open YouTube", "Search Google for…" | `open_website`, `google_search` | http(s) only |
+| "Summarize this page: …" | `read_web_page` | Public sites only (no local network); page text is treated as data |
+| "Find my CV", "Open the Downloads folder" | `search_files`, `open_file_or_folder` | Documents, Desktop, Downloads and project folders; programs/scripts are never opened |
+| "Write an email to … / a WhatsApp to …" | `draft_message` | Only **opens a draft**; you press Send |
+| "Fix the bug in my project" | `code_task` | Claude edits files (no shell) in `JARVIS_CODE_DIRS`; **needs your approval** |
+| "Delete …" | `delete_file` | **Needs your approval**; moved to trash |
+| Anything complex | `ask_claude` | Claude, with the same tools |
+
+When an approval is needed in voice mode, Jarvis asks out loud: press **Y** to allow or **N** to cancel, or use the dashboard.
+
+```powershell
+python -m jarvis.assistant                 # quick brain (default)
+python -m jarvis.assistant --to claude     # every request goes to Claude
+python -m jarvis.bridge --text "open youtube"   # same, typed
+```
 
 ### Use the same hands inside Claude Desktop (typing)
 
@@ -90,6 +113,9 @@ Install [Tailscale](https://tailscale.com) on the laptop and the phone. Start th
 | `JARVIS_GEMINI_MODEL` | `gemini-3.5-flash` | Ears model (tried first) |
 | `JARVIS_GEMINI_FALLBACKS` | `gemini-3.5-flash-lite,gemini-3.8-flash` | Also asked in parallel if the first model is slow (>4 s) or busy; the fastest answer wins |
 | `JARVIS_VOICE` | `windows` | Spoken replies: `windows`, `gemini` or `off` |
+| `JARVIS_QUICK_MODEL` | `gemini-3.5-flash` | Gemini model that does light tasks itself |
+| `JARVIS_CODE_DIRS` | `~/AbdelrahmanNafie`, `~/Projects`, `~/source/repos` (if they exist) | Folders Claude may edit for coding tasks (separate with `;`) |
+| `JARVIS_USER_DIRS` | `1` | `0` limits Jarvis to its own workspace instead of Documents/Desktop/Downloads |
 | `JARVIS_CLAUDE_MODEL` | `sonnet` | Brain model alias (`opus` is stronger but uses your plan's limit faster) |
 | `JARVIS_APPROVAL_WAIT_S` | `45` | How long a dangerous action waits for your click |
 

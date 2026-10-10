@@ -14,8 +14,9 @@ def test_claude_sees_only_the_allowlisted_tools(gateway):
     async def go():
         async with Client(build_server(gateway)) as client:
             tools = {t.name for t in (await client.list_tools()).tools}
-            assert tools == {"list_files", "read_file", "system_info", "write_note",
-                             "open_app", "delete_file", "reply_to_user"}
+            assert tools == {"list_files", "read_file", "system_info", "write_note", "open_app",
+                             "delete_file", "open_website", "google_search", "read_web_page",
+                             "search_files", "open_file_or_folder", "draft_message", "reply_to_user"}
             r = _payload(await client.call_tool("write_note", {"name": "hi", "text": "hello"}))
             assert r["status"] == "ok"
             r = _payload(await client.call_tool("reply_to_user", {"text": "Done"}))

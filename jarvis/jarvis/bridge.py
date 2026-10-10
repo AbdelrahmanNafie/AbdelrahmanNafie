@@ -1,6 +1,6 @@
 """The bridge: ears (Gemini) -> brain (Claude via your subscription, no API key).
 
-Examples:
+Examples (default: Gemini does light tasks; --to claude sends everything to Claude):
   python -m jarvis.bridge --text "اعمل نوت اسمها شوبينج فيها لبن وعيش"
   python -m jarvis.bridge --audio command.wav
   python -m jarvis.bridge --mic 5              # record 5 s (needs: pip install .[mic])
@@ -151,7 +151,8 @@ def main(argv: list[str] | None = None) -> int:
     src.add_argument("--audio", type=Path, help="path to a WAV/MP3/OGG recording")
     src.add_argument("--mic", type=float, nargs="?", const=0, metavar="SECONDS",
                      help="record from the microphone (no number: until you stop talking)")
-    parser.add_argument("--to", choices=["claude", "print"], default="claude")
+    parser.add_argument("--to", choices=["quick", "claude", "print"], default="quick",
+                        help="quick: Gemini does light tasks itself and hands heavy ones to Claude (default)")
     parser.add_argument("--new-session", action="store_true", help="start a fresh Claude conversation")
     parser.add_argument("--print-desktop-config", action="store_true",
                         help="print the claude_desktop_config.json snippet and exit")
@@ -175,6 +176,27 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     started = time.monotonic()
+    if args.to == "quick":
+        from . import voice
+        from .gateway import Gateway
+        from .quick import QuickBrain, QuickError
+
+        def announce(what: str) -> None:
+            print(f"🔐 Approval needed: {what}\n   Press Y to approve, N to cancel (or use the dashboard).",
+                  flush=True)
+
+        gateway = Gateway(settings, store, on_approval_needed=announce, approval_key=voice.yes_no_pressed)
+        claude = lambda task: ask_brain(settings, store, Heard(original=task, language="english",  # noqa: E731
+                                                                english=task), new_session=False)
+        try:
+            answer = QuickBrain(settings, gateway, ask_claude=claude).handle(heard)
+        except (QuickError, EarsError) as exc:
+            print(f"❌ {exc}")
+            return 1
+        store.log("brain", "reply", answer)
+        print(f"⚡ {answer}   ⏱ {time.monotonic() - started:.1f}s")
+        return 0
+
     try:
         answer = ask_brain(settings, store, heard, new_session=args.new_session)
     except BrainError as exc:

@@ -171,6 +171,20 @@ def meter(loudest: float, best: float, threshold: float) -> None:
     print("\r" + line.ljust(_METER_WIDTH), end="", flush=True)
 
 
+def yes_no_pressed() -> bool | None:
+    """Non-blocking: True if Y was pressed, False if N, else None (Windows console only)."""
+    if sys.platform != "win32":
+        return None
+    import msvcrt
+
+    answer = None
+    while msvcrt.kbhit():
+        key = msvcrt.getwch().lower()
+        if key in ("y", "n"):
+            answer = key == "y"
+    return answer
+
+
 def enter_pressed() -> bool:
     """Non-blocking check for the Enter key (Windows console); always False elsewhere."""
     if sys.platform != "win32":

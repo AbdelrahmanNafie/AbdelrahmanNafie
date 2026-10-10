@@ -31,6 +31,13 @@ ACTION_RISK: dict[str, Risk] = {
     "write_note": Risk.CHANGE,
     "open_app": Risk.CHANGE,
     "delete_file": Risk.DANGER,
+    "open_url": Risk.CHANGE,
+    "web_search": Risk.CHANGE,
+    "fetch_page": Risk.READ,
+    "search_files": Risk.READ,
+    "open_path": Risk.CHANGE,
+    "draft_message": Risk.CHANGE,  # opens a draft; the user presses Send
+    "code_task": Risk.DANGER,  # Claude edits project files
 }
 
 

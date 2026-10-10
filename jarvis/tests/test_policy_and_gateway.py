@@ -42,10 +42,12 @@ def test_note_never_overwrites_and_name_is_validated(gateway):
     assert gateway.request("write_note", {"name": "../evil", "text": "x"})["status"] == "error"
 
 
-def test_open_app_only_from_allowlist(gateway, launched):
+def test_open_app_only_known_apps(gateway, launched, monkeypatch):
+    from jarvis import actions
+    monkeypatch.setattr(actions, "_APPS_CACHE", {})  # no Start-menu apps in the test machine
     assert gateway.request("open_app", {"name": "notepad"})["status"] == "ok"
     assert gateway.request("open_app", {"name": "cmd.exe /c del *"})["status"] == "error"
-    assert launched == ["notepad.exe"]
+    assert launched == [["notepad.exe"]]
 
 
 def test_bad_arguments_from_model_are_reported(gateway):

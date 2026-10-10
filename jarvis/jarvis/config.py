@@ -24,10 +24,12 @@ class Settings:
     home: Path
     workspace: Path  # default folder the hands may read/write
     allowed_roots: tuple[Path, ...]  # every folder the hands may touch
+    code_roots: tuple[Path, ...]  # project folders Claude may edit for coding tasks
     db_path: Path
     apps: dict[str, str]
     gemini_model: str
     gemini_fallbacks: tuple[str, ...]  # tried in order when the main model is busy
+    quick_model: str  # Gemini model that runs light tasks itself (no Claude)
     claude_model: str  # alias for the brain; lighter models stretch your plan's usage limit
     # How long a dangerous action waits for a human click. Must stay below the
     # MCP client's tool timeout (~60 s in Claude Code by default), or Claude gives
@@ -54,6 +56,24 @@ def load() -> Settings:
         if p.strip()
     ]
 
+    # Your usual folders, so "find my CV" or "open Downloads" work. Deletes still need approval.
+    # Set JARVIS_USER_DIRS=0 to restrict Jarvis to its own workspace.
+    user_dirs: list[Path] = []
+    if os.environ.get("JARVIS_USER_DIRS", "1") != "0":
+        h = Path.home()
+        for p in (h / "Documents", h / "Desktop", h / "Downloads",
+                  h / "OneDrive" / "Documents", h / "OneDrive" / "Desktop"):
+            if p.is_dir():
+                user_dirs.append(p.resolve())
+
+    code_env = os.environ.get("JARVIS_CODE_DIRS")
+    if code_env is not None:
+        code_roots = [Path(p).expanduser().resolve() for p in code_env.split(os.pathsep) if p.strip()]
+    else:
+        h = Path.home()
+        code_roots = [p.resolve() for p in (h / "AbdelrahmanNafie", h / "Projects", h / "source" / "repos")
+                      if p.is_dir()]
+
     apps_file = home / "apps.json"
     if apps_file.exists():
         apps = {k.lower(): v for k, v in json.loads(apps_file.read_text("utf-8")).items()}
@@ -63,12 +83,14 @@ def load() -> Settings:
     return Settings(
         home=home,
         workspace=workspace,
-        allowed_roots=(workspace, *extra),
+        allowed_roots=tuple(dict.fromkeys((workspace, *user_dirs, *extra, *code_roots))),
+        code_roots=tuple(code_roots),
         db_path=home / "jarvis.db",
         apps=apps,
         gemini_model=os.environ.get("JARVIS_GEMINI_MODEL", "gemini-3.5-flash"),
         gemini_fallbacks=tuple(m.strip() for m in os.environ.get(
             "JARVIS_GEMINI_FALLBACKS", "gemini-3.5-flash-lite,gemini-3.8-flash").split(",") if m.strip()),
+        quick_model=os.environ.get("JARVIS_QUICK_MODEL", "gemini-3.5-flash"),
         claude_model=os.environ.get("JARVIS_CLAUDE_MODEL", "sonnet"),
         approval_wait_s=float(os.environ.get("JARVIS_APPROVAL_WAIT_S", "45")),
     )
