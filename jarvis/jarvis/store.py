@@ -48,6 +48,27 @@ CREATE TABLE IF NOT EXISTS reminders (
     message TEXT NOT NULL,
     fired INTEGER NOT NULL DEFAULT 0
 );
+-- What the user does on the laptop: the app/window in front, merged into time spans (local only).
+CREATE TABLE IF NOT EXISTS activity (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    start_ts REAL NOT NULL,
+    end_ts REAL NOT NULL,
+    app TEXT NOT NULL,
+    title TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS activity_end ON activity (end_ts);
+-- The conversation, so Jarvis keeps context across restarts.
+CREATE TABLE IF NOT EXISTS conversation (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts REAL NOT NULL,
+    said TEXT NOT NULL,
+    answer TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS kv (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    ts REAL NOT NULL
+);
 CREATE TABLE IF NOT EXISTS approvals (
     id TEXT PRIMARY KEY,
     ts REAL NOT NULL,
@@ -219,6 +240,49 @@ class Store:
                 "SELECT * FROM reminders WHERE fired=0 AND due_ts<=? ORDER BY due_ts", (now,)).fetchall()]
             c.executemany("UPDATE reminders SET fired=1 WHERE id=?", [(r["id"],) for r in rows])
         return rows
+
+    # --- activity (what's in front, sampled every few seconds) ----------------
+    def log_activity(self, app: str, title: str, now: float, max_gap_s: float = 90.0) -> None:
+        """Extend the last span if it's the same window and recent; otherwise start a new one."""
+        with self._conn() as c:
+            last = c.execute("SELECT id, end_ts, app, title FROM activity ORDER BY id DESC LIMIT 1").fetchone()
+            if last and last["app"] == app and last["title"] == title and now - last["end_ts"] <= max_gap_s:
+                c.execute("UPDATE activity SET end_ts=? WHERE id=?", (now, last["id"]))
+            else:
+                c.execute("INSERT INTO activity (start_ts, end_ts, app, title) VALUES (?,?,?,?)",
+                          (now, now, app, title))
+
+    def activity(self, since: float, until: float | None = None) -> list[dict[str, Any]]:
+        until = time.time() if until is None else until
+        with self._conn() as c:
+            return [dict(r) for r in c.execute(
+                "SELECT start_ts, end_ts, app, title FROM activity WHERE end_ts>=? AND start_ts<=? ORDER BY start_ts",
+                (since, until)).fetchall()]
+
+    def prune_activity(self, older_than: float) -> int:
+        with self._conn() as c:
+            return c.execute("DELETE FROM activity WHERE end_ts<?", (older_than,)).rowcount
+
+    # --- conversation ------------------------------------------------------
+    def add_exchange(self, said: str, answer: str) -> None:
+        with self._conn() as c:
+            c.execute("INSERT INTO conversation (ts, said, answer) VALUES (?,?,?)", (time.time(), said, answer))
+
+    def recent_exchanges(self, limit: int = 6) -> list[dict[str, Any]]:
+        with self._conn() as c:
+            rows = c.execute("SELECT ts, said, answer FROM conversation ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+        return [dict(r) for r in reversed(rows)]
+
+    # --- small settings / learned summaries --------------------------------
+    def put(self, key: str, value: str) -> None:
+        with self._conn() as c:
+            c.execute("INSERT INTO kv (key, value, ts) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET "
+                      "value=excluded.value, ts=excluded.ts", (key, value, time.time()))
+
+    def get(self, key: str) -> tuple[str, float] | None:
+        with self._conn() as c:
+            row = c.execute("SELECT value, ts FROM kv WHERE key=?", (key,)).fetchone()
+        return (row["value"], row["ts"]) if row else None
 
     def upcoming_reminders(self, limit: int = 10) -> list[dict[str, Any]]:
         with self._conn() as c:

@@ -19,7 +19,7 @@ def test_claude_sees_only_the_allowlisted_tools(gateway):
                              "search_files", "open_file_or_folder", "draft_message", "media_control",
                              "lock_screen", "list_running_apps", "close_app", "read_clipboard",
                              "copy_to_clipboard", "remember", "recall", "forget", "db_add", "db_find",
-                             "db_update", "db_delete", "reply_to_user"}
+                             "db_update", "db_delete", "my_activity", "reply_to_user"}
             r = _payload(await client.call_tool("write_note", {"name": "hi", "text": "hello"}))
             assert r["status"] == "ok"
             r = _payload(await client.call_tool("reply_to_user", {"text": "Done"}))

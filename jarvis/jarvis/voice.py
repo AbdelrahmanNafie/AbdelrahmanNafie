@@ -225,9 +225,9 @@ _WINDOWS_SAY = (
     "$s.Speak([Console]::In.ReadToEnd())"
 )
 
-# How the Gemini voice should sound. Gemini TTS follows plain-language style directions.
-_STYLE = ("Read this aloud as a warm, friendly young woman talking naturally to a friend: relaxed pace, "
-          "real intonation, light smile in the voice. Read only the text after the colon")
+# Only the reply itself goes to the speech model. (A style instruction in front of it can get
+# read out loud as part of every answer.) Optional short style, e.g. JARVIS_TTS_STYLE="Say warmly".
+_STYLE = os.environ.get("JARVIS_TTS_STYLE", "").strip()
 
 
 def split_for_speech(text: str, first_max: int = 140) -> list[str]:
@@ -265,6 +265,8 @@ class Speaker:
         self.runner = runner
         self.on_level = on_level  # 0..1 loudness while speaking, for the orb
         self._gemini_off_until = 0.0
+        self._can_stream = True
+        self.first_audio_s: float | None = None  # how long the last reply took to start sounding
 
     def set_voice(self, name: str) -> None:
         """'windows' or any Gemini voice name (from the profile)."""
@@ -296,7 +298,96 @@ class Speaker:
 
     # ------------------------------------------------------------ gemini
     def _say_gemini(self, text: str) -> None:
-        """Synthesize the next piece while the current one plays."""
+        import time
+
+        started = time.monotonic()
+        self.first_audio_s = None
+        if self._can_stream:
+            try:
+                if self._stream_gemini(text, started):
+                    return
+            except Exception as exc:  # noqa: BLE001
+                if self.first_audio_s is not None:  # already speaking: don't start over in another voice
+                    print(f"(voice stream stopped early: {str(exc)[:120]})")
+                    return
+                if "429" in str(exc) or "RESOURCE_EXHAUSTED" in str(exc):
+                    raise
+                self._can_stream = False  # this model/SDK can't stream: use whole clips from now on
+        self._say_gemini_clips(text, started)
+
+    def _contents(self, text: str) -> str:
+        return f"{_STYLE}: {text}" if _STYLE else text
+
+    def _speech_config(self):
+        from google.genai import types
+
+        return types.GenerateContentConfig(
+            response_modalities=["AUDIO"],
+            speech_config=types.SpeechConfig(voice_config=types.VoiceConfig(
+                prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=self.gemini_voice))))
+
+    def _client(self):
+        if self.client is None:
+            from .ears import make_client
+
+            self.client = make_client()
+        return self.client
+
+    def _stream_gemini(self, text: str, started: float) -> bool:
+        """Play audio as it arrives (raw 24 kHz 16-bit PCM chunks). False if playback isn't possible."""
+        import time
+
+        import numpy as np
+
+        try:
+            sd = _sounddevice()
+        except RuntimeError:
+            return False
+        rate, block = 24_000, 1200  # 50 ms
+        pending = b""
+        out = None
+        try:
+            for chunk in self._client().models.generate_content_stream(
+                    model=self.gemini_model, contents=self._contents(text), config=self._speech_config()):
+                for cand in chunk.candidates or []:
+                    for part in (cand.content.parts if cand.content else None) or []:
+                        if part.inline_data and part.inline_data.data:
+                            data = part.inline_data.data
+                            if data[:4] == b"RIFF":  # a whole WAV instead of raw PCM
+                                data = data[44:]
+                            pending += data
+                # Small pre-roll so a slow network doesn't make the voice stutter.
+                if out is None and len(pending) < rate * 2 // 4:
+                    continue
+                if out is None:
+                    out = sd.OutputStream(samplerate=rate, channels=1, dtype="int16")
+                    out.start()
+                    self.first_audio_s = time.monotonic() - started
+                usable = len(pending) - len(pending) % (block * 2)
+                pcm, pending = np.frombuffer(pending[:usable], dtype=np.int16), pending[usable:]
+                self._write(out, pcm, block)
+            if pending:
+                if out is None:
+                    out = sd.OutputStream(samplerate=rate, channels=1, dtype="int16")
+                    out.start()
+                    self.first_audio_s = time.monotonic() - started
+                self._write(out, np.frombuffer(pending[: len(pending) - len(pending) % 2], dtype=np.int16), block)
+        finally:
+            if out is not None:
+                out.stop()
+                out.close()
+        return out is not None
+
+    def _write(self, out, pcm, block: int) -> None:
+        for i in range(0, len(pcm), block):
+            chunk = pcm[i:i + block]
+            if self.on_level:
+                self.on_level(min(1.0, level(chunk) / 6000))
+            out.write(chunk.reshape(-1, 1))
+
+    def _say_gemini_clips(self, text: str, started: float) -> None:
+        """No streaming: synthesize the next piece while the current one plays."""
+        import time
         from concurrent.futures import ThreadPoolExecutor
 
         parts = split_for_speech(text)
@@ -304,26 +395,15 @@ class Speaker:
             pending = pool.submit(self._gemini_tts, parts[0])
             for i in range(len(parts)):
                 wav = pending.result()
+                if self.first_audio_s is None:
+                    self.first_audio_s = time.monotonic() - started
                 if i + 1 < len(parts):
                     pending = pool.submit(self._gemini_tts, parts[i + 1])
                 self._play_wav(wav)
 
     def _gemini_tts(self, text: str) -> bytes:
-        from google.genai import types
-
-        if self.client is None:
-            from .ears import make_client
-
-            self.client = make_client()
-        response = self.client.models.generate_content(
-            model=self.gemini_model,
-            contents=f"{_STYLE}: {text}",
-            config=types.GenerateContentConfig(
-                response_modalities=["AUDIO"],
-                speech_config=types.SpeechConfig(voice_config=types.VoiceConfig(
-                    prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=self.gemini_voice))),
-            ),
-        )
+        response = self._client().models.generate_content(
+            model=self.gemini_model, contents=self._contents(text), config=self._speech_config())
         data = response.candidates[0].content.parts[0].inline_data.data
         # Docs describe raw 24 kHz 16-bit mono PCM; accept a ready WAV too.
         return data if data[:4] == b"RIFF" else to_wav(data, rate=24_000)
@@ -344,13 +424,8 @@ class Speaker:
 
                 winsound.PlaySound(wav_bytes, winsound.SND_MEMORY)
             return
-        block = rate // 20  # 50 ms blocks: write() paces playback, and we report each block's loudness
         with sd.OutputStream(samplerate=rate, channels=1, dtype="int16") as out:
-            for i in range(0, len(pcm), block):
-                chunk = pcm[i:i + block]
-                if self.on_level:
-                    self.on_level(min(1.0, level(chunk) / 6000))
-                out.write(chunk.reshape(-1, 1))
+            self._write(out, pcm, rate // 20)  # 50 ms blocks: write() paces playback; report loudness
 
     # ----------------------------------------------------------- windows
     def _windows(self, text: str) -> None:

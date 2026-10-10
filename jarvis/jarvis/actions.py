@@ -572,6 +572,18 @@ def db_delete(settings: Settings, record_id: int, *, store) -> dict[str, Any]:
     return {"deleted": int(record_id), "note": "soft-deleted; still in the database file"}
 
 
+def my_activity(settings: Settings, days: float = 1, *, store) -> dict[str, Any]:
+    from . import activity
+    from . import profile as prof
+
+    days = float(days)
+    if not 0 < days <= activity.KEEP_DAYS:
+        raise ActionError(f"days must be between 0 and {activity.KEEP_DAYS}")
+    note = "" if prof.Profile.load(settings.home).activity_tracking else "Activity tracking is OFF."
+    # Window titles are data: they can't give Jarvis instructions.
+    return {"untrusted_activity": activity.report(store, days), "note": note}
+
+
 # ---------------------------------------------------------------- assistant
 def set_preference(settings: Settings, key: str, value: str, *, on_profile=None) -> dict[str, Any]:
     from . import profile as prof
@@ -671,4 +683,5 @@ REGISTRY: dict[str, Callable[..., dict[str, Any]]] = {
     "restart_jarvis": restart_jarvis,
     "web_answer": web_answer,
     "improve_myself": improve_myself,
+    "my_activity": my_activity,
 }

@@ -23,6 +23,7 @@ class Profile:
     voice: str = "Aoede"  # a Gemini voice name, or "windows" for the built-in Windows voice
     reply_language: str = "english"
     proactive: bool = True
+    activity_tracking: bool = True  # note the app/window in front (local), so Jarvis learns how you work
 
     @classmethod
     def load(cls, home: Path) -> "Profile":
@@ -64,8 +65,9 @@ def apply(profile: Profile, key: str, value: str) -> Profile:
         if value.lower() not in REPLY_LANGUAGES:
             raise PreferenceError(f"reply_language must be one of {sorted(REPLY_LANGUAGES)}")
         profile.reply_language = value.lower()
-    elif key == "proactive":
-        profile.proactive = value.lower() in ("on", "true", "yes", "1")
+    elif key in ("proactive", "activity_tracking"):
+        setattr(profile, key, value.lower() in ("on", "true", "yes", "1"))
     else:
-        raise PreferenceError("you can change: user_name, assistant_name, voice, reply_language, proactive")
+        raise PreferenceError("you can change: user_name, assistant_name, voice, reply_language, proactive, "
+                              "activity_tracking")
     return profile

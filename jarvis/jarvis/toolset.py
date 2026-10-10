@@ -93,9 +93,10 @@ def build(gw: Gateway, *, include_coding: bool = False, include_assistant: bool 
         return gw.request("clipboard_write", {"text": text})
 
     def remember(text: str, category: str = "general") -> dict:
-        """Save a lasting fact about the user so you know it in every future conversation.
-        category: profile, work, projects, people, preferences, goals, health, general.
-        Use it whenever the user tells you something worth knowing later."""
+        """Save something lasting so you know it in every future conversation.
+        category "instructions" = HOW they want things done (rules, methods, corrections, "from now on…");
+        these are always followed. Others: profile, work, projects, people, preferences, goals, general.
+        Write your spoken reply in the same response as this call."""
         return gw.request("remember", {"text": text, "category": category})
 
     def recall(query: str = "") -> dict:
@@ -124,10 +125,15 @@ def build(gw: Gateway, *, include_coding: bool = False, include_assistant: bool 
         """Delete an entry from the personal database."""
         return gw.request("db_delete", {"record_id": record_id})
 
+    def my_activity(days: float = 1) -> dict:
+        """What the user worked on: minutes per app and the main windows, for the last `days` days
+        (from the local activity log). For "what did I do today / this week?"."""
+        return gw.request("my_activity", {"days": days})
+
     tools = [list_files, read_file, system_info, write_note, open_app, delete_file, open_website,
              google_search, read_web_page, search_files, open_file_or_folder, draft_message,
              media_control, lock_screen, list_running_apps, close_app, read_clipboard, copy_to_clipboard,
-             remember, recall, forget, db_add, db_find, db_update, db_delete]
+             remember, recall, forget, db_add, db_find, db_update, db_delete, my_activity]
 
     if include_assistant:
         def set_reminder(minutes: float, message: str) -> dict:
@@ -137,7 +143,8 @@ def build(gw: Gateway, *, include_coding: bool = False, include_assistant: bool 
         def set_preference(key: str, value: str) -> dict:
             """Change how you behave. key: user_name (what to call the user), assistant_name (your name),
             voice (a Gemini voice like Aoede, Kore, Leda, Zephyr — or 'windows'),
-            reply_language (english, arabic, or same = match the user), proactive (on/off)."""
+            reply_language (english, arabic, or same = match the user), proactive (on/off),
+            activity_tracking (on/off: noting which app/window is in front so you learn their workflow)."""
             return gw.request("set_preference", {"key": key, "value": value})
 
         def go_to_sleep() -> dict:

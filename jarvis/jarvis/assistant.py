@@ -23,7 +23,7 @@ import threading
 import time
 from typing import Callable
 
-from . import actions, config, voice
+from . import actions, activity, config, voice
 from .profile import Profile
 from .bridge import BrainError, ask_brain, hear
 from .ears import EarsError, Heard
@@ -52,6 +52,10 @@ class _UISpeaker:
                 self.speaker.say(text, **kw)
             finally:
                 self.ui.emit("state", state="idle")
+
+    @property
+    def first_audio_s(self) -> float | None:
+        return getattr(self.speaker, "first_audio_s", None)
 
 
 class Control:
@@ -91,11 +95,29 @@ def briefing(profile: Profile, store: Store, now: float | None = None) -> str:
 
 
 class Monitor:
-    """Background check every few seconds: due reminders (always) and low battery (if proactive)."""
+    """Background check every few seconds: due reminders (always), low battery (if proactive),
+    and once a day a fresh summary of how the user works (if activity tracking is on)."""
 
-    def __init__(self, settings: config.Settings, store: Store, ui, *, battery=actions._battery):
+    LEARN_EVERY_S = 20 * 3600
+
+    def __init__(self, settings: config.Settings, store: Store, ui, *, battery=actions._battery,
+                 generate: Callable[[str], str] | None = None):
         self.settings, self.store, self.ui, self.battery = settings, store, ui, battery
+        self.generate = generate  # text → text with Gemini, for learning the workflow
         self._battery_warned = False
+        self._last_learn_try = 0.0
+
+    def maybe_learn(self, now: float | None = None) -> bool:
+        now = time.time() if now is None else now
+        if self.generate is None or now - self._last_learn_try < 3600:
+            return False
+        if not Profile.load(self.settings.home).activity_tracking:
+            return False
+        known = self.store.get("workflow")
+        if known and now - known[1] < self.LEARN_EVERY_S:
+            return False
+        self._last_learn_try = now
+        return activity.learn_workflow(self.store, self.generate, now) is not None
 
     def check(self, now: float | None = None) -> list[str]:
         """Returns what should be said now."""
@@ -121,6 +143,8 @@ class Monitor:
                     print(f"\n⏰ {text}", flush=True)
                     voice.chime("start")
                     say(text)
+                if self.maybe_learn():
+                    print("\n🧭 Updated what I know about how you work.", flush=True)
             except Exception as exc:  # noqa: BLE001 — the monitor must never take Jarvis down
                 print(f"(background check failed: {exc})")
             stop.wait(every_s)
@@ -159,9 +183,11 @@ def handle_one(settings: config.Settings, store: Store, speaker, record: Callabl
             ui.emit("heard", text=said)
         took = time.monotonic() - started
         store.log("brain", "reply", answer)
-        print(f"⚡ {answer}   ⏱ {took:.1f}s")
+        print(f"⚡ {answer}", flush=True)
         ui.emit("answer", text=answer, seconds=took)
         speaker.say(answer)
+        voice_s = getattr(speaker, "first_audio_s", None)
+        print(f"   ⏱ understood + acted in {took:.1f}s" + (f" · voice started {voice_s:.1f}s later" if voice_s else ""))
         return True
 
     try:
@@ -248,6 +274,9 @@ def main(argv: list[str] | None = None) -> int:
             print("   🧠 Handing this to Claude…", flush=True)
             speaker.say("This needs Claude. One moment.")
             ui.emit("state", state="thinking")
+            rules = [m["text"] for m in store.memories(limit=200) if m["category"] == "instructions"]
+            if rules:  # Claude follows the same standing instructions as Gemini
+                task += "\n\nThe user's standing instructions (always follow):\n" + "\n".join(f"- {r}" for r in rules)
             return ask_brain(settings, store, Heard(original=task, language="english", english=task),
                              new_session=False)
 
@@ -292,9 +321,11 @@ def main(argv: list[str] | None = None) -> int:
     def loop() -> None:
         print(f"{profile.assistant_name} is ready. Stop with Ctrl+C" + ("" if args.no_ui else " or close the window") + ".")
         speaker.say(briefing(profile, store))
-        monitor = Monitor(settings, store, ui)
+        monitor = Monitor(settings, store, ui, generate=_gemini_text(settings) if args.to == "quick" else None)
         threading.Thread(target=monitor.run, args=(lambda t: speaker.say(t, from_other_thread=True), stop),
                          daemon=True).start()
+        tracker = activity.Tracker(store, enabled=lambda: Profile.load(settings.home).activity_tracking)
+        threading.Thread(target=tracker.run, args=(stop,), daemon=True).start()
         first = True
         while not stop.is_set():
             ui.emit("state", state="sleeping")
@@ -348,6 +379,18 @@ def main(argv: list[str] | None = None) -> int:
         stop.set()
         print("\nGoodbye.")
     return 0
+
+
+def _gemini_text(settings: config.Settings) -> Callable[[str], str]:
+    def generate(prompt: str) -> str:
+        from google.genai import types
+
+        from .ears import make_client
+
+        response = make_client().models.generate_content(
+            model=settings.quick_model, contents=prompt, config=types.GenerateContentConfig(temperature=0.2))
+        return response.text or ""
+    return generate
 
 
 def _supervise(argv: list[str]) -> int:
