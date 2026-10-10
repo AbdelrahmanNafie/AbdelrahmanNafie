@@ -59,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--push-to-talk", action="store_true", help="press Enter instead of saying Hey Jarvis")
     parser.add_argument("--to", choices=["claude", "print"], default="claude")
     parser.add_argument("--voice", choices=["windows", "gemini", "off"], default=voice.default_voice())
-    parser.add_argument("--sensitivity", type=float, default=0.5,
+    parser.add_argument("--sensitivity", type=float, default=0.4,
                         help="wake word threshold 0-1 (lower = triggers more easily)")
     args = parser.parse_args(argv)
 
@@ -75,9 +75,9 @@ def main(argv: list[str] | None = None) -> int:
         wake = voice.WakeWord(threshold=args.sensitivity)
 
         def trigger() -> None:
-            print("\n💤 Say \"Hey Jarvis\"…", flush=True)
-            score = wake.wait()
-            print(f"✨ Heard the wake word ({score:.2f})", flush=True)
+            print("\n💤 Say \"Hey Jarvis\" (or press Enter)…", flush=True)
+            score = wake.wait(should_stop=voice.enter_pressed)
+            print("✨ Heard the wake word" + (f" ({score:.2f})" if score is not None else " (Enter)"), flush=True)
 
     def record() -> bytes | None:
         def ready() -> None:

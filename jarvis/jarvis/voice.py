@@ -112,7 +112,7 @@ def record_until_silence(*, max_s: float = 30.0, on_start=None) -> bytes | None:
 class WakeWord:
     """Blocks until the wake word is heard. Runs fully offline."""
 
-    def __init__(self, model: str = "hey_jarvis", threshold: float = 0.5):
+    def __init__(self, model: str = "hey_jarvis", threshold: float = 0.4):
         try:
             from openwakeword import utils
             from openwakeword.model import Model
@@ -123,15 +123,61 @@ class WakeWord:
         self.name = model
         self.threshold = threshold
 
-    def wait(self) -> float:
+    def wait(self, *, should_stop=None, show_meter: bool = True) -> float | None:
+        """Block until the wake word (returns its score) or should_stop() is true (returns None)."""
         sd = _sounddevice()
         self.model.reset()
         with sd.InputStream(samplerate=RATE, channels=1, dtype="int16", blocksize=CHUNK) as stream:
-            while True:
-                chunk = stream.read(CHUNK)[0][:, 0]
-                score = self.model.predict(chunk)[self.name]
-                if score >= self.threshold:
-                    return float(score)
+            chunks = (stream.read(CHUNK)[0][:, 0] for _ in iter(int, 1))
+            return wake_loop(chunks, lambda c: self.model.predict(c)[self.name], self.threshold,
+                             should_stop=should_stop, on_tick=meter if show_meter else None)
+
+
+def wake_loop(chunks, score_of, threshold: float, *, should_stop=None, on_tick=None,
+              tick_every: int = 6) -> float | None:
+    """Core of the wake-word wait, separated from the microphone so it can be tested.
+
+    Every `tick_every` chunks (~0.5 s) reports (loudest level, best score) to on_tick,
+    so the user can see the mic is alive and how close the wake word came.
+    """
+    loudest = best = 0.0
+    for i, chunk in enumerate(chunks, 1):
+        score = float(score_of(chunk))
+        if score >= threshold:
+            if on_tick:
+                print(flush=True)  # end the meter line
+            return score
+        loudest, best = max(loudest, level(chunk)), max(best, score)
+        if i % tick_every == 0:
+            if on_tick:
+                on_tick(loudest, best, threshold)
+            loudest = best = 0.0
+            if should_stop and should_stop():
+                if on_tick:
+                    print(flush=True)
+                return None
+    return None
+
+
+def meter(loudest: float, best: float, threshold: float) -> None:
+    """One self-updating line: mic volume bar + wake word score."""
+    bars = min(20, int(loudest / 300))
+    hint = "  (mic silent? check Windows sound input)" if loudest < 60 else ""
+    print(f"\r   mic {'█' * bars}{'·' * (20 - bars)}  wake score {best:.2f}/{threshold:.2f}"
+          f"  — or press Enter{hint}   ", end="", flush=True)
+
+
+def enter_pressed() -> bool:
+    """Non-blocking check for the Enter key (Windows console); always False elsewhere."""
+    if sys.platform != "win32":
+        return False
+    import msvcrt
+
+    pressed = False
+    while msvcrt.kbhit():
+        if msvcrt.getwch() in ("\r", "\n"):
+            pressed = True
+    return pressed
 
 
 def chime(kind: str = "start") -> None:

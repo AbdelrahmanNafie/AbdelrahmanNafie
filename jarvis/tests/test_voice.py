@@ -124,3 +124,25 @@ def test_assistant_handles_silence(settings, store):
     spk = FakeSpeaker()
     assistant.handle_one(settings, store, spk, lambda: None, to="claude", new_session=True)
     assert spk.said == ["I didn't hear anything."]
+
+
+def _chunks(n, value=1000):
+    import numpy as np
+    return (np.full(1280, value, dtype=np.int16) for _ in range(n))
+
+
+def test_wake_loop_fires_on_score():
+    scores = iter([0.1, 0.2, 0.6])
+    assert voice.wake_loop(_chunks(10), lambda c: next(scores), 0.5) == 0.6
+
+
+def test_wake_loop_stops_on_enter_and_reports_progress():
+    ticks = []
+    result = voice.wake_loop(_chunks(100), lambda c: 0.1, 0.5, should_stop=lambda: len(ticks) >= 2,
+                             on_tick=lambda lv, best, th: ticks.append((round(lv), best)))
+    assert result is None and ticks == [(1000, 0.1), (1000, 0.1)]
+
+
+def test_meter_warns_when_mic_is_silent(capsys):
+    voice.meter(10, 0.0, 0.4)
+    assert "mic silent" in capsys.readouterr().out
