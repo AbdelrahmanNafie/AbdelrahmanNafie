@@ -77,3 +77,20 @@ def test_all_models_busy_gives_clear_error():
 
     with pytest.raises(EarsError, match="busy right now"):
         understand(text="افتح", model="a", fallbacks=("b",), client=SimpleNamespace(models=Models()))
+
+
+def test_timeout_falls_back_then_reports_clearly():
+    import httpx
+
+    from jarvis.ears import EarsError
+
+    tried = []
+
+    class Models:
+        def generate_content(self, *, model, **_):
+            tried.append(model)
+            raise httpx.ReadTimeout("The read operation timed out")
+
+    with pytest.raises(EarsError, match="did not answer"):
+        understand(text="افتح", model="a", fallbacks=("b", "c"), client=SimpleNamespace(models=Models()))
+    assert tried == ["a", "b", "c"]

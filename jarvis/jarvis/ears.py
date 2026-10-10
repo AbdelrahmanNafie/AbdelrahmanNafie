@@ -60,14 +60,14 @@ _TRY_NEXT_MODEL = {404, 408, 429, 500, 502, 503, 504}
 
 
 def make_client():
-    """Gemini client that fails fast (no silent retries, 20 s timeout) so we can switch models."""
+    """Gemini client that fails fast (no silent retries, 45 s timeout) so we can switch models."""
     from google import genai
     from google.genai import types
 
     if not os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
         raise EarsError("Set GEMINI_API_KEY to use Gemini for Arabic or audio input")
     return genai.Client(http_options=types.HttpOptions(
-        timeout=20_000, retry_options=types.HttpRetryOptions(attempts=1)))
+        timeout=45_000, retry_options=types.HttpRetryOptions(attempts=1)))
 
 
 def understand(*, text: str | None = None, audio: bytes | None = None, mime_type: str = "audio/wav",
@@ -85,22 +85,33 @@ def understand(*, text: str | None = None, audio: bytes | None = None, mime_type
     payload = [types.Part.from_bytes(data=audio, mime_type=mime_type)] if audio is not None else [text]
     config = types.GenerateContentConfig(response_mime_type="application/json", response_schema=Heard,
                                          temperature=0)
+    import httpx
+
     models = [model, *(m for m in fallbacks if m and m != model)]
-    last: errors.APIError | None = None
-    for name in models:
+    last: Exception | None = None
+    for i, name in enumerate(models):
+        nxt = f"; trying {models[i + 1]}" if i + 1 < len(models) else ""
         try:
             response = client.models.generate_content(model=name, contents=[EARS_PROMPT, *payload], config=config)
         except errors.APIError as exc:
             last = exc
-            if exc.code in _TRY_NEXT_MODEL and name != models[-1]:
-                print(f"   (Gemini {name} busy: {exc.code}; trying {models[models.index(name) + 1]})")
+            if exc.code in _TRY_NEXT_MODEL and nxt:
+                print(f"   (Gemini {name} busy: {exc.code}{nxt})", flush=True)
+                continue
+            break
+        except (httpx.TimeoutException, httpx.TransportError) as exc:  # slow or dropped connection
+            last = exc
+            if nxt:
+                print(f"   (Gemini {name} did not answer in time{nxt})", flush=True)
                 continue
             break
         if isinstance(response.parsed, Heard):
             return response.parsed
         return Heard.model_validate_json(response.text)
 
-    assert last is not None
-    hint = _HINTS.get(last.code, "Gemini returned an error; see the message above.")
-    raise EarsError(f"Gemini error {last.code} {last.status}: {last.message}\n"
-                    f"  key used: {_key_source()}\n  ➜ {hint}") from last
+    if isinstance(last, errors.APIError):
+        hint = _HINTS.get(last.code, "Gemini returned an error; see the message above.")
+        raise EarsError(f"Gemini error {last.code} {last.status}: {last.message}\n"
+                        f"  key used: {_key_source()}\n  ➜ {hint}") from last
+    raise EarsError(f"Gemini did not answer ({type(last).__name__}). Your internet may be slow or Google "
+                    "is overloaded.\n  ➜ Check your connection and try again in a minute.") from last

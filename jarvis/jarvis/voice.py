@@ -99,8 +99,11 @@ def record_until_silence(*, max_s: float = 30.0, on_start=None) -> bytes | None:
             frames.append(chunk)
             if detector.feed(level(chunk)):
                 break
+    seconds = len(frames) * CHUNK_S
     if not detector.heard_speech:
         return None
+    note = " (hit the time limit: background noise may be too loud)" if seconds >= max_s - 0.1 else ""
+    print(f"⏹  Recorded {seconds:.1f}s{note}", flush=True)
     return to_wav(np.concatenate(frames).tobytes())
 
 
