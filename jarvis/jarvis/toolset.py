@@ -159,7 +159,9 @@ def build(gw: Gateway, *, include_coding: bool = False, include_assistant: bool 
             """Change how you behave. key: user_name (what to call the user), assistant_name (your name),
             voice (a Gemini voice like Aoede, Kore, Leda, Zephyr — or 'windows'),
             reply_language (english, arabic, or same = match the user), proactive (on/off),
-            activity_tracking (on/off: noting which app/window is in front so you learn their workflow)."""
+            activity_tracking (on/off: noting which app/window is in front so you learn their workflow),
+            nearby_only (on/off: answer only voices close to the laptop), voice_lock (on/off: answer
+            only the enrolled voice — needs `python -m jarvis.enroll`)."""
             return gw.request("set_preference", {"key": key, "value": value})
 
         def go_to_sleep() -> dict:

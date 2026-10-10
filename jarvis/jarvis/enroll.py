@@ -1,4 +1,5 @@
-"""Teach Jarvis your voice, so it ignores other people, the TV and its own echo.
+"""Teach Jarvis your voice — optional. Only needed if you want it to answer *only* you
+("listen only to me"); by default it answers anyone close to the laptop.
 
   python -m jarvis.enroll            # read 6 short sentences (about a minute)
   python -m jarvis.enroll --test     # say something: shows how well it matches you
@@ -77,6 +78,8 @@ def main(argv: list[str] | None = None) -> int:
     if result["self_match_min"] < result["threshold"] + 0.1:
         print("   Your recordings varied a lot (noise?). If Jarvis ignores you, run this again somewhere quieter.")
     print("   Test it: python -m jarvis.enroll --test")
+    print("   The voice lock is OFF by default (Jarvis answers anyone close by). To answer only you, say")
+    print("   \"listen only to me\" — or run Jarvis and turn on voice_lock.")
     return 0
 
 

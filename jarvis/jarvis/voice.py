@@ -369,6 +369,14 @@ class _Stopped(Exception):
     pass
 
 
+class _Partial(Exception):
+    """The voice failed partway: the rest of the reply still has to be said."""
+
+    def __init__(self, remaining: str, played_s: float, cause: Exception):
+        super().__init__(str(cause))
+        self.remaining, self.played_s, self.cause = remaining, played_s, cause
+
+
 class _QuotaError(RuntimeError):
     pass
 
@@ -389,15 +397,15 @@ class Speaker:
                     'gemini'  Gemini voice, e.g. Aoede (very natural, but only ~10-100 replies a day)
                     'windows' built-in Windows voice (offline, robotic)
                     'off'     silent
-    If the engine fails *before* a reply starts, the next engine says it. A reply that already
-    started is never restarted in another voice.
+    If an engine fails, the next one says what's left (a sentence that failed is retried once
+    first). Nothing is ever skipped silently: you always hear the whole reply.
     """
 
     QUOTA_COOLDOWN_S = 3600
 
     def __init__(self, voice: str = "gemini", *, gemini_model: str | None = None,
                  gemini_voice: str = "Aoede", edge_voice: str = EDGE_VOICES["ava"], client=None,
-                 runner=subprocess.run, on_level=None, cache_dir=None):
+                 runner=subprocess.run, on_level=None, cache_dir=None, log=None):
         import time
 
         self.voice = voice
@@ -419,6 +427,7 @@ class Speaker:
         self.first_audio_s: float | None = None
         self.engine_used = ""
         self._clock = time.monotonic
+        self.log = log or (lambda kind, summary: None)  # → audit log, for `python -m jarvis.report`
 
     # ------------------------------------------------------------ choosing
     def set_voice(self, name: str) -> None:
@@ -458,19 +467,35 @@ class Speaker:
         stop = should_stop or (lambda: False)
         started = self._clock()
         self.first_audio_s = None
+        played_before = 0.0
+        remaining = text
         for engine in self._chain():
             if engine == "windows":
                 self.engine_used = "windows"
-                return self._windows(text, from_other_thread=from_other_thread, stop=stop, started=started)
+                spoken = self._windows(remaining, from_other_thread=from_other_thread, stop=stop, started=started)
+                spoken.played_s += played_before
+                return spoken
             try:
                 self.engine_used = engine
-                return self._edge(text, stop, started) if engine == "edge" else self._gemini(text, stop, started)
+                spoken = (self._edge(remaining, stop, started) if engine == "edge"
+                          else self._gemini(remaining, stop, started))
+                spoken.played_s += played_before
+                return spoken
             except _Stopped as exc:
-                return exc.args[0]
+                spoken = exc.args[0]
+                spoken.played_s += played_before
+                spoken.heard_text = _heard_part(text, spoken.played_s)
+                return spoken
+            except _Partial as exc:  # failed halfway: say the rest with the next voice, don't go silent
+                print(f"(voice {engine} failed partway: {str(exc.cause)[:120]} — finishing with another voice)")
+                self.log("voice_failed", f"{engine} failed partway: {str(exc.cause)[:200]}")
+                remaining, played_before = exc.remaining, played_before + exc.played_s
             except Exception as exc:  # noqa: BLE001 — never lose the answer because of the voice
-                if self.first_audio_s is not None:  # already speaking: don't start over in another voice
-                    print(f"(voice stopped early: {str(exc)[:120]})")
-                    return Spoken(played_s=self._clock() - started)
+                if self.first_audio_s is not None:
+                    played = self._clock() - started
+                    cut = _heard_part(remaining, played).rstrip("…")
+                    remaining = remaining[len(cut):].strip() or remaining
+                self.log("voice_failed", f"{engine}: {type(exc).__name__}: {str(exc)[:200]}")
                 self._notice(f"{engine}-fail-{type(exc).__name__}",
                              f"({engine} voice unavailable: {str(exc)[:140]} — using another voice)")
         return Spoken()
@@ -551,7 +576,7 @@ class Speaker:
                     buf += item["data"]
             return bytes(buf)
 
-        mp3 = asyncio.run(fetch())
+        mp3 = asyncio.run(asyncio.wait_for(fetch(), timeout=12))
         if not mp3:
             raise RuntimeError("no audio received")
         pcm, rate = soundfile.read(io.BytesIO(mp3), dtype="int16")
@@ -562,13 +587,25 @@ class Speaker:
         from concurrent.futures import ThreadPoolExecutor
 
         parts = split_for_speech(text)
-        synth = lambda t: self._cached("edge", self.edge_voice, t, self._edge_synth)  # noqa: E731
+
+        def synth(t: str):
+            try:
+                return self._cached("edge", self.edge_voice, t, self._edge_synth)
+            except Exception:  # noqa: BLE001 — one retry: network blips are common
+                return self._cached("edge", self.edge_voice, t, self._edge_synth)
+
         play = close = None
         pool = ThreadPoolExecutor(max_workers=1)
+        i = 0
         try:
             pending = pool.submit(synth, parts[0])
             for i in range(len(parts)):
-                pcm, rate = pending.result()
+                try:
+                    pcm, rate = pending.result()
+                except Exception as exc:  # noqa: BLE001
+                    if play is None:
+                        raise
+                    raise _Partial(" ".join(parts[i:]), close(), exc) from exc
                 if i + 1 < len(parts):
                     pending = pool.submit(synth, parts[i + 1])
                 if play is None:
@@ -750,18 +787,23 @@ def default_voice() -> str:
 
 # ---------------------------------------------------------------- interrupting (barge-in)
 class BargeDetector:
-    """Decides, chunk by chunk, whether the user started talking over Jarvis.
+    """Decides, chunk by chunk, whether someone started talking over Jarvis.
 
-    Jarvis's own voice also reaches the microphone (echo). Two defences:
-    - echo gating: we know how loud we're playing, learn how much of it the mic picks up, and only
-      count sound clearly louder than that echo (and that the voice detector calls speech);
-    - voiceprint (if enrolled): a candidate is accepted only when it sounds like *you*, so echo,
-      the TV or other people can't interrupt. With headphones there's no echo at all.
-    Saying the wake word always interrupts.
+    Jarvis's own voice also reaches the microphone (echo), often half a second or more *after* we
+    play it (Bluetooth, sound "enhancements", driver buffers). So:
+    - for the first 1.5 s of a reply it only learns how loud that echo is (the largest echo-to-output
+      ratio it sees, with the output level taken over the last second to cover the delay);
+    - after that it needs ~0.5 s of speech clearly louder than the echo (3x) before it interrupts;
+    - the wake word always interrupts;
+    - with a voiceprint, a candidate must also sound like the enrolled voice.
+    With headphones there's no echo at all, so talking over Jarvis works best there.
     """
 
+    LEARN_CHUNKS = 19  # ~1.5 s
+    MARGIN = 3.0
+
     def __init__(self, *, noise_floor: float = 300.0, energy: bool = True, verify=None, wake_score=None,
-                 wake_threshold: float = 0.5, min_chunks: int = 3, verify_chunks: int = 12):
+                 wake_threshold: float = 0.5, min_chunks: int = 6, verify_chunks: int = 12):
         self.noise_floor = noise_floor
         self.energy = energy
         self.verify = verify  # samples → True / False / None (can't tell)
@@ -770,15 +812,14 @@ class BargeDetector:
         self.min_chunks = min_chunks
         self.verify_chunks = verify_chunks
         self.echo_ratio = 0.0
-        self._ratios: list[float] = []
-        self._warm = 0
+        self._seen = 0
         self._loud = 0
         self.history: list = []  # recent chunks (pre-roll)
         self.candidate: list = []
         self.reason = ""
 
     def feed(self, chunk, out_level: float, speech: bool | None = None) -> bool:
-        """out_level: loudness we were just playing (RMS, int16 scale); speech: voice detector verdict."""
+        """out_level: loudness we played recently (RMS, int16 scale); speech: voice detector verdict."""
         import numpy as np
 
         mic = level(chunk)
@@ -789,15 +830,13 @@ class BargeDetector:
             return True
         if not self.energy:
             return False
-        if out_level > 300 and not self.candidate:  # learn how much of our voice the mic hears…
-            if self._warm < 6 or mic <= 1.5 * self.echo_ratio * out_level + 100:  # …but not from *you* talking
-                self._ratios = (self._ratios + [mic / out_level])[-40:]
-                self._warm += 1
-                self.echo_ratio = float(np.percentile(self._ratios, 80))
-        if self._warm < 6 and self.verify is None:
-            return False  # first ~0.5 s of playback: still learning the echo
+        self._seen += 1
+        if self._seen <= self.LEARN_CHUNKS:  # learning the echo: never interrupt yet
+            if out_level > 300:
+                self.echo_ratio = max(self.echo_ratio, mic / out_level)
+            return False
         expected_echo = self.echo_ratio * out_level
-        margin = 1.3 if self.verify else 2.2  # a voiceprint check filters echo anyway
+        margin = 1.5 if self.verify else self.MARGIN  # a voiceprint check filters echo anyway
         loud = mic > max(self.noise_floor * 3, 400) and mic > margin * expected_echo + 200 and speech is not False
         if not self.candidate:
             self._loud = self._loud + 1 if loud else 0
@@ -818,6 +857,21 @@ class BargeDetector:
         if verdict is False or len(self.candidate) >= self.verify_chunks * 2:
             self.candidate, self._loud = [], 0  # echo / someone else: keep talking
         return False
+
+    def learn_false_alarm(self, out_level: float) -> None:
+        """An interruption turned out to be nothing: raise the echo estimate so it doesn't repeat."""
+        if out_level > 300 and self.history:
+            self.echo_ratio = max(self.echo_ratio, max(level(c) for c in self.history) / out_level)
+
+
+def headphones_in_use() -> bool:
+    """Best guess from the default output device's name (Windows names them 'Headphones…',
+    'Headset…', 'AirPods…'). Talking over Jarvis is reliable only without speaker echo."""
+    try:
+        name = str(_sounddevice().query_devices(kind="output")["name"]).lower()
+    except Exception:  # noqa: BLE001
+        return False
+    return any(k in name for k in ("headphone", "headset", "earphone", "earbud", "airpods", "buds", "hands-free"))
 
 
 class BargeIn:

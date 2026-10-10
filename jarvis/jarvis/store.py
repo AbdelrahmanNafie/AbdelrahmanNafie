@@ -116,6 +116,16 @@ class Store:
             ).fetchall()
         return [{**dict(r), "data": json.loads(r["data"])} for r in reversed(rows)]
 
+    def events_since(self, ts: float, limit: int = 5000) -> list[dict[str, Any]]:
+        with self._conn() as c:
+            rows = c.execute("SELECT * FROM events WHERE ts >= ? ORDER BY id LIMIT ?", (ts, limit)).fetchall()
+        return [{**dict(r), "data": json.loads(r["data"])} for r in rows]
+
+    def exchanges_since(self, ts: float) -> list[dict[str, Any]]:
+        with self._conn() as c:
+            return [dict(r) for r in c.execute("SELECT ts, said, answer FROM conversation WHERE ts >= ? ORDER BY id",
+                                               (ts,)).fetchall()]
+
     # --- approvals -------------------------------------------------------
     def create_approval(self, action: str, args: dict[str, Any]) -> str:
         req_id = uuid.uuid4().hex[:8]

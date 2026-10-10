@@ -27,6 +27,7 @@ from typing import Callable
 
 from . import actions, activity, config, voice
 from .profile import Profile
+from .nearby import NearbyGate
 from .speaker_id import VoicePrint, wav_samples
 from .bridge import BrainError, ask_brain, hear
 from .ears import EarsError, Heard
@@ -213,10 +214,15 @@ def handle_one(settings: config.Settings, store: Store, speaker, record: Callabl
             return False
         took = time.monotonic() - started
         spoken = _show_and_say(store, speaker, ui, said, answer, took)
+        current = answer
         corrections = 0
         while spoken is not None and getattr(spoken, "audio", None) and corrections < 5:
-            corrections += 1  # they talked over the answer: take the correction right away
-            print("✋ Adjusting to what you said…", flush=True)
+            corrections += 1
+            store.log("voice", "interrupted", f"after: {spoken.heard_text[:120]}")
+            if not _has_speech(spoken.audio):  # a noise, not someone talking: carry on
+                spoken = _resume(store, speaker, current, spoken.heard_text)
+                continue
+            print("✋ Adjusting to what you said…", flush=True)  # they talked over it: take the correction
             ui.emit("state", state="thinking")
             started = time.monotonic()
             try:
@@ -225,8 +231,10 @@ def handle_one(settings: config.Settings, store: Store, speaker, record: Callabl
                 print(f"❌ {exc}")
                 ui.emit("error", text=str(exc))
                 break
-            if not answer:
-                break
+            if not answer:  # it wasn't meant for Jarvis: finish what it was saying
+                spoken = _resume(store, speaker, current, spoken.heard_text)
+                continue
+            current = answer
             spoken = _show_and_say(store, speaker, ui, said, answer, time.monotonic() - started)
         return True
 
@@ -277,6 +285,24 @@ def _show_and_say(store: Store, speaker, ui, said: str, answer: str, took: float
     return spoken
 
 
+def _has_speech(audio: bytes) -> bool:
+    from .nearby import speech_levels
+
+    try:
+        return speech_levels(wav_samples(audio))["voiced_s"] >= 0.4
+    except Exception:  # noqa: BLE001 — can't measure: assume it was speech
+        return True
+
+
+def _resume(store: Store, speaker, answer: str, heard: str):
+    """A false interruption: say the rest of the reply instead of going quiet."""
+    cut = heard.rstrip("…")
+    rest = answer[len(cut):].strip() if answer.startswith(cut) else answer
+    print("↩️  Not a real interruption — carrying on", flush=True)
+    store.log("voice", "false_interrupt", "resumed the reply")
+    return speaker.say(rest, interruptible=True) if rest else None
+
+
 def _pick_voice(raw: voice.Speaker, choice: str, profile_voice: str) -> None:
     """--voice auto (default): the profile's voice decides the engine (Ava → Edge, Aoede → Gemini)."""
     if choice in ("off", "windows"):
@@ -297,8 +323,11 @@ def main(argv: list[str] | None = None) -> int:
                         help="quick: Gemini does light tasks, hands heavy ones to Claude (default)")
     parser.add_argument("--voice", choices=["auto", "edge", "gemini", "windows", "off"], default=voice.default_voice(),
                         help="auto (default): your profile's voice (Ava = Microsoft neural, no daily limit)")
-    parser.add_argument("--barge-in", choices=["auto", "wake", "off"], default=os.environ.get("JARVIS_BARGE_IN", "auto"),
-                        help="interrupt Jarvis by talking (auto), only with the wake word (wake), or not at all")
+    parser.add_argument("--barge-in", choices=["auto", "talk", "wake", "off"],
+                        default=os.environ.get("JARVIS_BARGE_IN", "auto"),
+                        help="how to interrupt Jarvis: auto = by talking with headphones, by 'Hey Jarvis' on "
+                             "speakers; talk = always by talking; wake = only 'Hey Jarvis'; off. "
+                             "Esc, a tap or typing always work")
     parser.add_argument("--sensitivity", type=float, default=0.4,
                         help="wake word threshold 0-1 (lower = triggers more easily)")
     parser.add_argument("--follow-up", type=float, default=8.0, metavar="SECONDS",
@@ -320,33 +349,40 @@ def main(argv: list[str] | None = None) -> int:
 
     def out_level() -> float:
         now = time.monotonic()
-        return max((lv for t, lv in list(out_levels) if now - t < 0.5), default=0.0)
+        return max((lv for t, lv in list(out_levels) if now - t < 1.0), default=0.0)  # covers speaker delay
 
     raw_speaker = voice.Speaker("edge" if voice._edge_available() else "gemini", on_level=on_voice_level,
-                                cache_dir=settings.home / "voice_cache")
+                                cache_dir=settings.home / "voice_cache",
+                                log=lambda kind, summary: store.log("voice", kind, summary))
     _pick_voice(raw_speaker, args.voice, profile.voice)
     voice_name = {"edge": raw_speaker.edge_voice, "gemini": raw_speaker.gemini_voice}.get(raw_speaker.voice,
                                                                                          raw_speaker.voice)
     print(f"🔊 Voice: {voice_name} ({raw_speaker.voice})", flush=True)
 
     voiceprint = VoicePrint(settings.home)
-    if voiceprint.enrolled:  # load the voice model now, not on the first request
-        threading.Thread(target=voiceprint.embedder, daemon=True).start()
-        print("🔒 Voice lock: only your voice is answered (python -m jarvis.enroll --forget to undo)", flush=True)
-    else:
-        print("💡 Tip: run `python -m jarvis.enroll` once so Jarvis only listens to your voice.", flush=True)
+    nearby = NearbyGate(store)
 
     def locked() -> bool:
         return voiceprint.enrolled and Profile.load(settings.home).voice_lock
 
+    if locked():  # load the voice model now, not on the first request
+        threading.Thread(target=voiceprint.embedder, daemon=True).start()
+        print("🔒 Voice lock ON: only your enrolled voice is answered (say 'listen to everyone' to turn off)")
+    if profile.nearby_only:
+        print("📏 Answering voices close to the laptop; distant ones are ignored "
+              "(say 'answer voices from anywhere' to turn off)", flush=True)
+    talk_to_interrupt = args.barge_in == "talk" or (args.barge_in == "auto" and voice.headphones_in_use())
+    print("✋ Interrupt me: " + ("just talk, " if talk_to_interrupt else "") +
+          "say 'Hey Jarvis', press Esc, tap the orb or type.", flush=True)
+
     wake_ref: dict = {"wake": None}
-    outcome: dict = {"ignored": ""}  # "voice" = not your voice (checked locally), "model" = not meant for Jarvis
+    outcome: dict = {"ignored": ""}  # "voice"/"far" = checked locally, "model" = not meant for Jarvis
 
     def make_barge(text: str):
         if args.barge_in == "off":
             return None
         wake = wake_ref["wake"] if "jarvis" not in text.lower() else None  # don't trigger on our own words
-        energy = args.barge_in == "auto" and (locked() or raw_speaker.levels_available)
+        energy = talk_to_interrupt and raw_speaker.levels_available
         if not energy and wake is None:
             return None
         return voice.BargeIn(out_level=out_level, voiceprint=voiceprint if locked() else None, wake=wake,
@@ -430,15 +466,29 @@ def main(argv: list[str] | None = None) -> int:
                 print("🎙  Speak now (beep). I stop when you pause.", flush=True)
                 voice.chime("start")
 
-        audio = voice.record_until_silence(on_start=ready, no_speech_s=args.follow_up if follow_up else 8.0,
+        wait = args.follow_up
+        last = store.recent_exchanges(1)
+        if follow_up and last and last[0]["answer"].rstrip().endswith(("?", "؟")):
+            wait = max(wait, 15.0)  # it asked you something: give you time to answer
+        audio = voice.record_until_silence(on_start=ready, no_speech_s=wait if follow_up else 8.0,
                                            on_level=lambda v: ui.emit("level", value=v))
         if audio is not None:
             voice.chime("stop")
-            if locked() and not voiceprint.matches(wav_samples(audio)):
+            samples = wav_samples(audio)
+            if Profile.load(settings.home).nearby_only:
+                close, info = nearby.check(samples, lenient=not follow_up)  # just said "Hey Jarvis": lenient
+                if not close:
+                    print(f"🔇 Ignored a distant voice — {info['why']}", flush=True)
+                    ui.emit("info", text="Ignored a distant voice")
+                    store.log("voice", "ignored_far", info["why"])
+                    outcome["ignored"] = "far"
+                    return None
+            if locked() and not voiceprint.matches(samples):
                 score = voiceprint.last_score
                 print(f"🙉 Ignored a voice that isn't yours (match {score:.2f})" if score is not None
                       else "🙉 Ignored: couldn't tell whose voice that was", flush=True)
                 ui.emit("info", text="Ignored a voice that isn't yours")
+                store.log("voice", "ignored_not_you", f"match {voiceprint.last_score}")
                 outcome["ignored"] = "voice"
                 return None
         return audio
@@ -478,7 +528,9 @@ def main(argv: list[str] | None = None) -> int:
                 if control.sleep_requested.is_set():  # "pause" / "go to sleep": back to the wake word
                     control.sleep_requested.clear()
                     break
-                if not spoke and outcome["ignored"] == "voice" and strangers < 3:
+                if spoke and typed is None:
+                    nearby.learn()  # a real, answered request: this is what "nearby" sounds like
+                if not spoke and outcome["ignored"] in ("voice", "far") and strangers < 3:
                     strangers += 1  # someone else talked (checked on this laptop, free): keep listening for you
                     follow_up = True
                     continue

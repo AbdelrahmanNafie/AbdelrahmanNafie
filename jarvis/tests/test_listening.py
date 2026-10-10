@@ -26,7 +26,7 @@ def test_loud_noise_that_isnt_speech_is_ignored():
 
 
 # ---------------------------------------------------------------- barge-in
-def _warm(det, out=3000, ratio=0.3, n=8):
+def _warm(det, out=3000, ratio=0.3, n=voice.BargeDetector.LEARN_CHUNKS):
     for _ in range(n):
         assert det.feed(tone(out * ratio), out_level=out, speech=True) is False
 
@@ -40,16 +40,30 @@ def test_own_voice_echo_does_not_interrupt():
 def test_talking_over_jarvis_interrupts_and_keeps_the_start_of_the_words():
     det = voice.BargeDetector(noise_floor=100)
     _warm(det)
-    results = [det.feed(tone(4000), out_level=3000, speech=True) for _ in range(3)]
-    assert results == [False, False, True] and det.reason == "voice"
-    assert len(det.candidate) >= 3  # pre-roll included
+    results = [det.feed(tone(4000), out_level=3000, speech=True) for _ in range(6)]
+    assert results == [False] * 5 + [True] and det.reason == "voice"  # ~0.5 s of real speech
+    assert len(det.candidate) >= 6  # pre-roll included
+
+
+def test_delayed_echo_never_cuts_jarvis_off():
+    """Speakers/Bluetooth can play our voice back 0.5-1 s late: that must not count as you."""
+    rng = np.random.default_rng(0)
+    for delay in (0, 6, 12):  # chunks of 80 ms
+        det = voice.BargeDetector(noise_floor=120)
+        out = [3000 * (0.6 + 0.4 * rng.random()) for _ in range(120)]
+        for i in range(120):
+            echo = out[i - delay] * 0.6 if i >= delay else 0
+            ref = max(out[max(0, i - 12):i + 1])
+            assert not det.feed(tone(echo + 120), out_level=ref, speech=True), (delay, i)
 
 
 def test_noise_or_someone_else_does_not_interrupt_with_a_voiceprint():
     det = voice.BargeDetector(noise_floor=100, verify=lambda s: False, verify_chunks=4)
+    _warm(det, ratio=0.01)
     assert not any(det.feed(tone(4000), out_level=0, speech=True) for _ in range(20))
     me = voice.BargeDetector(noise_floor=100, verify=lambda s: True, verify_chunks=4)
-    assert any(me.feed(tone(4000), out_level=0, speech=True) for _ in range(8)) and me.reason == "your voice"
+    _warm(me, ratio=0.01)
+    assert any(me.feed(tone(4000), out_level=0, speech=True) for _ in range(12)) and me.reason == "your voice"
     assert not any(voice.BargeDetector(noise_floor=100).feed(tone(4000), out_level=0, speech=False)
                    for _ in range(20))
 
@@ -110,20 +124,26 @@ def test_edge_voice_speaks_sentence_by_sentence_and_caches_short_phrases(fake_au
     assert asked.count("One sec, let me check.") == 1  # second time from the cache
 
 
-def test_a_reply_never_switches_voice_halfway(fake_audio, monkeypatch):
+def test_if_the_voice_fails_halfway_the_rest_is_still_said(fake_audio, monkeypatch):
     monkeypatch.setattr(voice, "_edge_available", lambda: True)
-    windows = []
-    spk = voice.Speaker("edge", runner=lambda cmd, **kw: windows.append(kw["input"]))
-    calls = iter([True, False])
+    monkeypatch.setattr(voice.sys, "platform", "win32")
+    windows, logged = [], []
+    broken = SimpleNamespace(models=SimpleNamespace(generate_content=lambda **_: (_ for _ in ()).throw(
+        RuntimeError("503"))))
+    spk = voice.Speaker("edge", client=broken, runner=lambda cmd, **kw: windows.append(kw["input"]),
+                        log=lambda kind, summary: logged.append(kind))
+    spk._can_stream = False
+    ok = {"First sentence is long enough to stand alone."}
 
     def synth(text):
-        if not next(calls):
+        if text not in ok:
             raise RuntimeError("network dropped")
         return np.ones(2400, dtype=np.int16), 24_000
 
     spk._edge_synth = synth
     spk.say("First sentence is long enough to stand alone. Second sentence fails to download sadly.")
-    assert windows == []  # stopped quietly instead of repeating it all in another voice
+    assert windows == ["Second sentence fails to download sadly."]  # finished, not silence
+    assert "voice_failed" in logged
 
 
 def test_voice_falls_back_before_a_reply_starts(fake_audio, monkeypatch):

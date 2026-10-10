@@ -28,11 +28,16 @@ RATE = 16_000
 DEFAULT_THRESHOLD = 0.45  # cosine similarity; same speaker on the same mic is usually well above this
 
 
-def _threshold() -> float:
+def _threshold(home: Path | None = None) -> float:
+    """JARVIS_VOICE_MATCH, else the threshold fitted at enrollment, else the default."""
     try:
-        return float(os.environ.get("JARVIS_VOICE_MATCH", DEFAULT_THRESHOLD))
+        if "JARVIS_VOICE_MATCH" in os.environ:
+            return float(os.environ["JARVIS_VOICE_MATCH"])
+        if home is not None and (home / "voiceprint_threshold.txt").exists():
+            return float((home / "voiceprint_threshold.txt").read_text().strip())
     except ValueError:
-        return DEFAULT_THRESHOLD
+        pass
+    return DEFAULT_THRESHOLD
 
 
 # ------------------------------------------------------------------ features (Kaldi-style fbank)
@@ -144,7 +149,8 @@ class VoicePrint:
         self.path = home / "voiceprint.npy"
         self.print_: np.ndarray | None = np.load(self.path) if self.path.exists() else None
         self._embedder = embedder
-        self.threshold = _threshold() if threshold is None else threshold
+        self.threshold = _threshold(home) if threshold is None else threshold
+        self._fixed = threshold is not None or "JARVIS_VOICE_MATCH" in os.environ
         self.last_score: float | None = None
 
     @property
@@ -202,8 +208,14 @@ class VoicePrint:
         self_scores = [cosine(e, mean) for e in embs]
         np.save(self.path, mean.astype(np.float32))
         self.print_ = mean
+        # Fit the bar to *your* recordings: well below how much they agree with each other, so your
+        # voice on a worse day (other room, tired, farther away) still passes. Others score ~0-0.3.
+        if not self._fixed:
+            self.threshold = round(min(DEFAULT_THRESHOLD, max(0.25, min(self_scores) - 0.35)), 2)
+            (self.home / "voiceprint_threshold.txt").write_text(f"{self.threshold}")
         return {"clips": len(embs), "self_match_min": round(min(self_scores), 2), "threshold": self.threshold}
 
     def forget(self) -> None:
         self.path.unlink(missing_ok=True)
+        (self.home / "voiceprint_threshold.txt").unlink(missing_ok=True)
         self.print_ = None

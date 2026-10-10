@@ -25,8 +25,9 @@ class Profile:
     reply_language: str = "english"
     proactive: bool = True
     activity_tracking: bool = True  # note the app/window in front (local), so Jarvis learns how you work
-    voice_lock: bool = True  # with an enrolled voiceprint: ignore voices that aren't yours
-    version: int = 2
+    voice_lock: bool = False  # with an enrolled voiceprint: ignore voices that aren't yours (opt-in)
+    nearby_only: bool = True  # answer anyone close to the laptop, ignore distant voices
+    version: int = 3
 
     @classmethod
     def load(cls, home: Path) -> "Profile":
@@ -40,7 +41,9 @@ class Profile:
         known = {f.name for f in fields(cls)}
         if data.get("version", 1) < 2 and data.get("voice") == "Aoede":
             data["voice"] = "Ava"  # old default: Gemini's voice runs out of quota and then changes
-        data["version"] = 2
+        if data.get("version", 1) < 3:
+            data["voice_lock"] = False  # it rejected the user's own voice: now opt-in ("listen only to me")
+        data["version"] = 3
         return cls(**{k: v for k, v in data.items() if k in known})
 
     def save(self, home: Path) -> None:
@@ -76,9 +79,9 @@ def apply(profile: Profile, key: str, value: str) -> Profile:
         if value.lower() not in REPLY_LANGUAGES:
             raise PreferenceError(f"reply_language must be one of {sorted(REPLY_LANGUAGES)}")
         profile.reply_language = value.lower()
-    elif key in ("proactive", "activity_tracking", "voice_lock"):
+    elif key in ("proactive", "activity_tracking", "voice_lock", "nearby_only"):
         setattr(profile, key, value.lower() in ("on", "true", "yes", "1"))
     else:
         raise PreferenceError("you can change: user_name, assistant_name, voice, reply_language, proactive, "
-                              "activity_tracking, voice_lock")
+                              "activity_tracking, voice_lock, nearby_only")
     return profile

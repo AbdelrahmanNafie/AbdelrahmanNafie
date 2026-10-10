@@ -46,16 +46,22 @@ Their personal database (open items per collection): {collections}
 Upcoming reminders: {reminders}
 Now: {now}.
 
-Before you act — understand first, then pick the best way:
-1. Be sure what they actually want. If something that changes the result is missing or the
-   request has two plausible meanings, ask ONE short question, offering your best guess
-   ("The Q3 report in Downloads, or the one on the Desktop?"). Don't ask when it's clear.
-2. Check their standing instructions and memory for how they like this done, and do it that way.
-3. Choose the most direct, reliable way with your tools. Use what's on screen / in front.
-4. If it sends, deletes, closes, overwrites, spends money, edits code, or takes 3+ steps and
-   they didn't spell it out: say your plan in one sentence and ask "Shall I?" first.
-   Simple, clear requests (open, search, play, remind, note): just do them.
-5. Afterwards check the tool results and report honestly. Never claim success without status "ok".
+Getting things done — be flexible, finish the job:
+1. Understand what they actually want, including loose or mixed Arabic/English phrasing. Use the
+   window in front, the conversation so far, memory and standing instructions to fill gaps.
+   If a detail is truly missing and guessing could do harm, ask ONE short question with your
+   best guess. Otherwise make the sensible choice and do it.
+2. Clear requests: just do them — including several steps in a row. Don't ask "Shall I?" for
+   opening, searching, reading, noting, reminding, media, files, drafting.
+3. Ask first ONLY before something irreversible or outward-facing that they didn't spell out:
+   deleting, sending, closing unsaved work, spending money, editing code.
+4. When they answer "yes", "ok", "go ahead", "تمام", "ماشي", "اه", "يلا" right after you asked,
+   carry out exactly what you proposed — don't ask again.
+5. Finish the WHOLE request: if it has several parts, do every part. If a step fails, try another
+   reasonable way (another tool, path, name or spelling) before giving up. If it still can't be
+   done, say exactly what worked, what didn't and why, and what they can do.
+6. Check tool results before answering. Never claim something worked unless status is "ok".
+7. If they change their mind or correct you, drop the old plan and follow the new one.
 
 Learning (this is how you stay consistent):
 - When they tell you HOW they want things done — a rule, a method, a correction, "from now on",
@@ -78,9 +84,12 @@ Finding information — do it in the background, never in front of them:
 - If they ask you to close tabs: close_browser_tab closes the tab in front.
 
 Listening:
-- The audio can contain other people, a TV or a video. Only respond to the main speaker talking
-  to you (the closest, clearest voice). If the clip is only background talk, or clearly not meant
-  for you, reply exactly with two lines — "HEARD: <what you heard>" and "[IGNORE]" — and call no tools.
+- Anyone near the laptop may talk to you, not just the owner: help them too (only the owner's
+  standing instructions and memory are about the owner). Distant voices are filtered out before
+  you hear them.
+- Reply "[IGNORE]" (as two lines: "HEARD: <what you heard>" then "[IGNORE]", no tools) ONLY when
+  there is clearly no request for you at all: a TV/video, music, or people talking to each other.
+  When in doubt, treat it as a request.
 - If they interrupted your last reply, what they say now is usually a correction: adjust right
   away, don't repeat what they already heard, and don't argue.
 
@@ -137,11 +146,11 @@ def build_system_prompt(profile, memories: list[dict], collections: dict[str, in
 
 
 # Said as a rule about the future → saved even if the model forgets to (questions excluded).
+# Only explicit "about the future" phrases: everyday words like "always"/"دايما" appear in normal
+# requests (and in other people's speech) and must not turn into permanent rules.
 _RULE_HINTS = re.compile(
-    r"\b(from now on|going forward|from today|next time|every time|whenever i|always|never(?! mind)|"
-    r"don'?t ever|remember that|keep in mind|make sure you)\b|"
-    r"من دلوقتي|من النهارده|بعد كده|كل ما|كل مرة|دايما|دايمًا|على طول|اوعى|أوعى|ابدا|أبدا|"
-    r"افتكر ان|افتكر إن|خلي بالك|متنساش", re.I)
+    r"\b(from now on|going forward|from today on|next time|in the future|remember that|keep in mind that)\b|"
+    r"من دلوقتي|من النهارده|بعد كده|بعد كدا|المرة الجاية|افتكر ان|افتكر إن|خلي بالك ان|متنساش ان", re.I)
 _QUESTION = re.compile(r"[?؟]\s*$|^(is|are|do|does|did|can|could|what|why|how|when|where|who|هل|ليه|ازاي|إزاي|امتى|فين|مين)\b",
                        re.I)
 
@@ -189,7 +198,7 @@ class QuickBrain:
     """One conversation per assistant session, so follow-ups like "open it" work."""
 
     def __init__(self, settings, gateway: Gateway, *, ask_claude: Callable[[str], str] | None = None,
-                 client=None, models: list[str] | None = None, max_rounds: int = 8,
+                 client=None, models: list[str] | None = None, max_rounds: int = 12,
                  sleep: Callable[[float], None] = time.sleep,
                  capture_screen: Callable[[], bytes] = screen.capture,
                  active_window: Callable[[], str] = screen.active_window,
@@ -231,6 +240,7 @@ class QuickBrain:
         tools.append(look_at_screen)
         self.tools = {t.__name__: t for t in tools}
         self.turns = self._restore_history()
+        self._done_this_turn: list[str] = []
 
     # ------------------------------------------------------------------ model
     def _restore_history(self) -> list[list]:
@@ -330,6 +340,7 @@ class QuickBrain:
         self.calls = 0
         text = ""
         saved_memory = False
+        self._done_this_turn: list[str] = []
         for step in range(self.max_rounds):
             response = self._generate(history + turn, thinking=None if step == 0 else "MINIMAL")
             content = response.candidates[0].content if response.candidates else None
@@ -359,7 +370,10 @@ class QuickBrain:
                     results.append(types.Part(text=f"(screenshot failed: {exc})"))
             turn.append(types.Content(role="user", parts=results))
         else:
-            text = "HEARD: \nI stopped because the task needed too many steps."
+            done = list(self._done_this_turn)
+            text = ("HEARD: \nThat took more steps than I allow in one go, so I paused. "
+                    + (f"So far I did: {', '.join(done[:8])}. " if done else "")
+                    + "Say continue and I'll pick it up from there.")
 
         said, answer = _split_heard(text, fallback=heard.original if heard else "")
         if answer.strip().upper().startswith("[IGNORE]"):  # background voices, not for us
@@ -412,7 +426,10 @@ class QuickBrain:
         if fn is None:
             return {"status": "error", "error": f"unknown tool {call.name}"}
         try:
-            return fn(**args)
+            result = fn(**args)
+            if isinstance(result, dict) and result.get("status") == "ok":
+                self._done_this_turn.append(call.name.replace("_", " "))
+            return result
         except TypeError as exc:  # wrong argument names from the model
             return {"status": "error", "error": f"bad arguments: {exc}"}
 
