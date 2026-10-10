@@ -53,6 +53,7 @@ class UI(NullUI):
         self._commands: queue.Queue = queue.Queue()
         self._last_state: dict[str, Any] = {"kind": "state", "state": "sleeping"}
         self._last_level = 0.0
+        self._last_profile: dict[str, Any] | None = None
         self.server = ThreadingHTTPServer(("127.0.0.1", port), _handler(self))
         self.server.daemon_threads = True
         self.port = self.server.server_address[1]
@@ -64,7 +65,7 @@ class UI(NullUI):
 
     # ---------------------------------------------------------------- events
     def emit(self, kind: str, **data: Any) -> None:
-        if kind == "level":  # mic level: at most ~15 updates/s
+        if kind == "level":  # mic or voice level: at most ~15 updates/s
             now = time.monotonic()
             if now - self._last_level < 0.066:
                 return
@@ -72,6 +73,8 @@ class UI(NullUI):
         event = {"kind": kind, "ts": time.time(), **data}
         if kind == "state":
             self._last_state = event
+        elif kind == "profile":
+            self._last_profile = event
         with self._lock:
             for q in list(self._clients):
                 try:
@@ -81,6 +84,8 @@ class UI(NullUI):
 
     def _subscribe(self) -> queue.Queue:
         q: queue.Queue = queue.Queue(maxsize=500)
+        if self._last_profile:  # a page opened later still shows the assistant's name
+            q.put_nowait(self._last_profile)
         q.put_nowait(self._last_state)
         with self._lock:
             self._clients.append(q)

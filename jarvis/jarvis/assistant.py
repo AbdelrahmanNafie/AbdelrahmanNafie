@@ -5,21 +5,26 @@
   python -m jarvis.assistant --push-to-talk    # press Enter instead of the wake word
   python -m jarvis.assistant --to claude       # send every request to Claude
   python -m jarvis.assistant --to print        # only repeat what it understood (no actions)
-  python -m jarvis.assistant --voice gemini    # natural Gemini voice (default: Windows voice)
+  python -m jarvis.assistant --voice windows   # built-in Windows voice (default: natural Gemini voice)
 
 In the window you can also tap the orb to talk, type a request, and allow/deny
 actions. After each answer Jarvis keeps listening for a follow-up (8 s by default).
-Stop with Ctrl+C or by closing the window.
+Say "pause" / "go to sleep" to stop the conversation, "restart" to reload (e.g. after it
+improved its own code). Stop with Ctrl+C or by closing the window.
 """
 
 from __future__ import annotations
 
 import argparse
+import os
+import subprocess
+import sys
 import threading
 import time
 from typing import Callable
 
-from . import config, voice
+from . import actions, config, voice
+from .profile import Profile
 from .bridge import BrainError, ask_brain, hear
 from .ears import EarsError, Heard
 from .gateway import Gateway
@@ -28,20 +33,97 @@ from .store import Store
 from .ui import UI, NullUI, run_native_window
 
 
+RESTART_CODE = 3  # the child asks the supervisor to start it again
+
+
 class _UISpeaker:
-    """Wraps the speaker so the orb shows 'speaking' while the voice plays."""
+    """Wraps the speaker so the orb shows 'speaking' while the voice plays (one voice at a time)."""
 
     def __init__(self, speaker: voice.Speaker, ui):
         self.speaker, self.ui = speaker, ui
+        self._lock = threading.Lock()
 
     def say(self, text: str, **kw) -> None:
         if not text.strip():
             return
-        self.ui.emit("state", state="speaking")
-        try:
-            self.speaker.say(text, **kw)
-        finally:
-            self.ui.emit("state", state="idle")
+        with self._lock:
+            self.ui.emit("state", state="speaking")
+            try:
+                self.speaker.say(text, **kw)
+            finally:
+                self.ui.emit("state", state="idle")
+
+
+class Control:
+    """What the brain's go_to_sleep / restart_yourself tools ask the assistant loop to do."""
+
+    def __init__(self):
+        self.sleep_requested = threading.Event()
+        self.restart_requested = threading.Event()
+
+    def sleep(self) -> None:
+        self.sleep_requested.set()
+
+    def restart(self) -> None:
+        self.restart_requested.set()
+
+
+def briefing(profile: Profile, store: Store, now: float | None = None) -> str:
+    """Start-up greeting built locally (no Gemini call): name, open tasks, next reminder."""
+    now = time.time() if now is None else now
+    hour = time.localtime(now).tm_hour
+    hello = ("Good morning" if 5 <= hour < 12 else "Good afternoon" if 12 <= hour < 17
+             else "Good evening" if 17 <= hour < 23 else "Hi")
+    name = profile.user_name
+    parts = [f"{hello}{', ' + name if name else ''}. {profile.assistant_name} here."]
+    if not name:
+        parts.append("I don't know your name yet. Say Hey Jarvis and tell me what to call you.")
+    tasks = store.find_records("tasks")
+    if tasks:
+        overdue = sum(1 for t in tasks if t["due_ts"] and t["due_ts"] < now)
+        parts.append(f"You have {len(tasks)} open task{'s' if len(tasks) != 1 else ''}"
+                     + (f", {overdue} overdue" if overdue else "") + ".")
+    upcoming = [r for r in store.upcoming_reminders(3) if r["due_ts"] >= now]
+    if upcoming:
+        nxt = upcoming[0]
+        parts.append(f"Next reminder at {time.strftime('%H:%M', time.localtime(nxt['due_ts']))}: {nxt['message']}.")
+    return " ".join(parts)
+
+
+class Monitor:
+    """Background check every few seconds: due reminders (always) and low battery (if proactive)."""
+
+    def __init__(self, settings: config.Settings, store: Store, ui, *, battery=actions._battery):
+        self.settings, self.store, self.ui, self.battery = settings, store, ui, battery
+        self._battery_warned = False
+
+    def check(self, now: float | None = None) -> list[str]:
+        """Returns what should be said now."""
+        now = time.time() if now is None else now
+        said = []
+        for rem in self.store.take_due_reminders(now):
+            late = now - rem["due_ts"] > 300  # Jarvis wasn't running when it was due
+            said.append(f"{'Missed reminder' if late else 'Reminder'}: {rem['message']}")
+            self.ui.emit("reminder", text=rem["message"])
+        if Profile.load(self.settings.home).proactive:
+            b = self.battery() or {}
+            if b.get("plugged_in") or b.get("percent") is None:
+                self._battery_warned = False
+            elif b["percent"] <= 20 and not self._battery_warned:
+                self._battery_warned = True
+                said.append(f"Heads up, your battery is at {b['percent']} percent. You might want to plug in.")
+        return said
+
+    def run(self, say: Callable[[str], None], stop: threading.Event, every_s: float = 15.0) -> None:
+        while not stop.is_set():
+            try:
+                for text in self.check():
+                    print(f"\n⏰ {text}", flush=True)
+                    voice.chime("start")
+                    say(text)
+            except Exception as exc:  # noqa: BLE001 — the monitor must never take Jarvis down
+                print(f"(background check failed: {exc})")
+            stop.wait(every_s)
 
 
 def handle_one(settings: config.Settings, store: Store, speaker, record: Callable[[], bytes | None], *,
@@ -121,19 +203,28 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--push-to-talk", action="store_true", help="press Enter instead of saying Hey Jarvis")
     parser.add_argument("--to", choices=["quick", "claude", "print"], default="quick",
                         help="quick: Gemini does light tasks, hands heavy ones to Claude (default)")
-    parser.add_argument("--voice", choices=["windows", "gemini", "off"], default=voice.default_voice())
+    parser.add_argument("--voice", choices=["gemini", "windows", "off"], default=voice.default_voice(),
+                        help="gemini: natural voice from your profile (default); windows: built-in voice")
     parser.add_argument("--sensitivity", type=float, default=0.4,
                         help="wake word threshold 0-1 (lower = triggers more easily)")
     parser.add_argument("--follow-up", type=float, default=8.0, metavar="SECONDS",
                         help="keep listening this long after each answer (0 = wake word every time)")
     parser.add_argument("--no-ui", action="store_true", help="don't open the Jarvis app window")
     args = parser.parse_args(argv)
+    if os.environ.get("JARVIS_CHILD") != "1":
+        return _supervise(sys.argv[1:] if argv is None else argv)
 
     settings = config.load()
     store = Store(settings.db_path)
+    profile = Profile.load(settings.home)
     ui = NullUI() if args.no_ui else UI(store)
-    speaker = _UISpeaker(voice.Speaker(args.voice), ui)
+    raw_speaker = voice.Speaker(args.voice, on_level=lambda v: ui.emit("level", value=v, source="voice"))
+    if args.voice == "gemini":
+        raw_speaker.set_voice(profile.voice)
+    speaker = _UISpeaker(raw_speaker, ui)
+    ui.emit("profile", assistant_name=profile.assistant_name, user_name=profile.user_name)
     stop = threading.Event()
+    control = Control()
 
     quick = None
     if args.to == "quick":
@@ -145,14 +236,13 @@ def main(argv: list[str] | None = None) -> int:
                 ui.emit("approval", id=p["id"], action=p["action"], args=p["args"], seconds=settings.approval_wait_s)
             speaker.say("I need your approval.")
 
-        def remind(message: str) -> None:  # runs on a timer thread
-            print(f"\n⏰ Reminder: {message}", flush=True)
-            ui.emit("reminder", text=message)
-            voice.chime("start")
-            speaker.say(f"Reminder: {message}", from_other_thread=True)
+        def on_profile(p: Profile) -> None:  # "call me…", "your name is…", "use a different voice"
+            if args.voice != "off":
+                raw_speaker.set_voice(p.voice)
+            ui.emit("profile", assistant_name=p.assistant_name, user_name=p.user_name)
 
         gateway = Gateway(settings, store, on_approval_needed=announce, approval_key=voice.yes_no_pressed,
-                          notify=remind)
+                          control=control, on_profile=on_profile)
 
         def claude(task: str) -> str:
             print("   🧠 Handing this to Claude…", flush=True)
@@ -200,8 +290,11 @@ def main(argv: list[str] | None = None) -> int:
         return audio
 
     def loop() -> None:
-        print("Jarvis is ready. Stop with Ctrl+C" + ("" if args.no_ui else " or close the window") + ".")
-        speaker.say("Jarvis is ready.")
+        print(f"{profile.assistant_name} is ready. Stop with Ctrl+C" + ("" if args.no_ui else " or close the window") + ".")
+        speaker.say(briefing(profile, store))
+        monitor = Monitor(settings, store, ui)
+        threading.Thread(target=monitor.run, args=(lambda t: speaker.say(t, from_other_thread=True), stop),
+                         daemon=True).start()
         first = True
         while not stop.is_set():
             ui.emit("state", state="sleeping")
@@ -221,6 +314,12 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"❌ Unexpected error: {type(exc).__name__}: {exc}")
                     ui.emit("error", text=f"{type(exc).__name__}: {exc}")
                     spoke = False
+                if control.restart_requested.is_set():
+                    print("\n🔄 Restarting…", flush=True)
+                    os._exit(RESTART_CODE)  # also closes the window; the supervisor starts a fresh copy
+                if control.sleep_requested.is_set():  # "pause" / "go to sleep": back to the wake word
+                    control.sleep_requested.clear()
+                    break
                 if not spoke:
                     if not follow_up:
                         speaker.say("I didn't hear anything.")
@@ -249,6 +348,26 @@ def main(argv: list[str] | None = None) -> int:
         stop.set()
         print("\nGoodbye.")
     return 0
+
+
+def _supervise(argv: list[str]) -> int:
+    """Run Jarvis as a child process and start it again when it asks to restart.
+
+    A restart loads new code (e.g. after improve_myself) in the same console window.
+    """
+    env = {**os.environ, "JARVIS_CHILD": "1"}
+    while True:
+        child = subprocess.Popen([sys.executable, "-m", "jarvis.assistant", *argv], env=env)
+        try:
+            code = child.wait()
+        except KeyboardInterrupt:  # Ctrl+C reaches the child too; let it say goodbye
+            try:
+                return child.wait(timeout=10)
+            except (KeyboardInterrupt, subprocess.TimeoutExpired):
+                child.kill()
+                return 130
+        if code != RESTART_CODE:
+            return code
 
 
 if __name__ == "__main__":

@@ -45,6 +45,18 @@ ACTION_RISK: dict[str, Risk] = {
     "clipboard_read": Risk.READ,
     "clipboard_write": Risk.CHANGE,
     "set_reminder": Risk.CHANGE,
+    "remember": Risk.CHANGE,
+    "recall": Risk.READ,
+    "forget": Risk.CHANGE,  # soft delete
+    "db_add": Risk.CHANGE,
+    "db_find": Risk.READ,
+    "db_update": Risk.CHANGE,
+    "db_delete": Risk.CHANGE,  # soft delete
+    "set_preference": Risk.CHANGE,
+    "go_to_sleep": Risk.CHANGE,
+    "restart_jarvis": Risk.CHANGE,
+    "web_answer": Risk.READ,
+    "improve_myself": Risk.DANGER,  # edits Jarvis's own code (tested, auto-undone on failure)
 }
 
 

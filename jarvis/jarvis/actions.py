@@ -499,22 +499,143 @@ def clipboard_write(settings: Settings, text: str, *, shell: Callable[..., str] 
     return {"copied_chars": len(text)}
 
 
-def _print_notice(message: str) -> None:
-    print(f"\n⏰ Reminder: {message}", flush=True)
-
-
-def set_reminder(settings: Settings, minutes: float, message: str, *,
-                 notify: Callable[[str], None] = _print_notice) -> dict[str, Any]:
-    import threading
-
+def set_reminder(settings: Settings, minutes: float, message: str, *, store) -> dict[str, Any]:
     minutes = float(minutes)
-    if not 0 < minutes <= 24 * 60:
-        raise ActionError("minutes must be between 0 and 1440")
-    timer = threading.Timer(minutes * 60, notify, args=[message])
-    timer.daemon = True
-    timer.start()
-    due = time.strftime("%H:%M", time.localtime(time.time() + minutes * 60))
-    return {"reminder_at": due, "message": message, "note": "Kept while Jarvis is running."}
+    if not 0 < minutes <= 60 * 24 * 60:
+        raise ActionError("minutes must be between 0 and 86400 (60 days)")
+    due = time.time() + minutes * 60
+    store.add_reminder(due, message)
+    return {"reminder_at": time.strftime("%a %H:%M", time.localtime(due)), "message": message,
+            "note": "Saved; it fires even after a restart (while Jarvis is running)."}
+
+
+# ------------------------------------------------------- memory & personal database
+def remember(settings: Settings, text: str, category: str = "general", *, store) -> dict[str, Any]:
+    text = text.strip()
+    if not 3 <= len(text) <= 500:
+        raise ActionError("a memory must be 3-500 characters")
+    return {"memory_id": store.remember(text, category.strip().lower() or "general")}
+
+
+def recall(settings: Settings, query: str = "", *, store) -> dict[str, Any]:
+    return {"memories": store.memories(query, limit=30)}
+
+
+def forget(settings: Settings, memory_id: int, *, store) -> dict[str, Any]:
+    if not store.forget(int(memory_id)):
+        raise ActionError(f"no memory with id {memory_id}")
+    return {"forgotten": int(memory_id)}
+
+
+def _parse_due(due: str) -> float | None:
+    if not due.strip():
+        return None
+    from datetime import datetime
+
+    try:
+        return datetime.fromisoformat(due.strip()).timestamp()
+    except ValueError as exc:
+        raise ActionError("due must look like 2026-10-20 or 2026-10-20 18:30") from exc
+
+
+def db_add(settings: Settings, collection: str, text: str, details: str = "", due: str = "", *,
+           store) -> dict[str, Any]:
+    if not re.fullmatch(r"[\w \-]{1,40}", collection.strip()):
+        raise ActionError("collection must be a short name like tasks, expenses, contacts, ideas")
+    if not text.strip():
+        raise ActionError("text is empty")
+    rid = store.add_record(collection, text.strip(), details.strip(), _parse_due(due))
+    return {"record_id": rid, "collection": collection.strip().lower()}
+
+
+def db_find(settings: Settings, collection: str = "", query: str = "", include_done: bool = False, *,
+            store) -> dict[str, Any]:
+    rows = store.find_records(collection, query, bool(include_done))
+    for r in rows:
+        r["created"] = time.strftime("%Y-%m-%d", time.localtime(r.pop("ts")))
+        due = r.pop("due_ts")
+        r["due"] = time.strftime("%Y-%m-%d %H:%M", time.localtime(due)) if due else ""
+    return {"records": rows, "collections": store.collections()}
+
+
+def db_update(settings: Settings, record_id: int, done: bool | None = None, text: str = "",
+              details: str = "", *, store) -> dict[str, Any]:
+    ok = store.update_record(int(record_id), done=done, text=text or None, details=details or None)
+    if not ok:
+        raise ActionError(f"no record with id {record_id} (or nothing to change)")
+    return {"updated": int(record_id)}
+
+
+def db_delete(settings: Settings, record_id: int, *, store) -> dict[str, Any]:
+    if not store.update_record(int(record_id), deleted=True):
+        raise ActionError(f"no record with id {record_id}")
+    return {"deleted": int(record_id), "note": "soft-deleted; still in the database file"}
+
+
+# ---------------------------------------------------------------- assistant
+def set_preference(settings: Settings, key: str, value: str, *, on_profile=None) -> dict[str, Any]:
+    from . import profile as prof
+
+    current = prof.Profile.load(settings.home)
+    try:
+        updated = prof.apply(current, key, value)
+    except prof.PreferenceError as exc:
+        raise ActionError(str(exc)) from exc
+    updated.save(settings.home)
+    if on_profile:
+        on_profile(updated)
+    return {"saved": {key: getattr(updated, key.strip().lower().replace(" ", "_"))}}
+
+
+def go_to_sleep(settings: Settings, *, control=None) -> dict[str, Any]:
+    if control is None:
+        raise ActionError("only available in voice mode")
+    control.sleep()
+    return {"sleeping": True, "note": "Wakes on 'Hey Jarvis' or a tap on the orb."}
+
+
+def restart_jarvis(settings: Settings, *, control=None) -> dict[str, Any]:
+    if control is None:
+        raise ActionError("only available in voice mode")
+    control.restart()
+    return {"restarting": True}
+
+
+def _ask_google(question: str, model: str) -> dict[str, Any]:
+    from google.genai import types
+
+    from .ears import make_client
+
+    response = make_client().models.generate_content(
+        model=model, contents=question,
+        config=types.GenerateContentConfig(tools=[types.Tool(google_search=types.GoogleSearch())],
+                                           temperature=0.2))
+    sources = []
+    for cand in response.candidates or []:
+        meta = cand.grounding_metadata
+        for chunk in (meta.grounding_chunks if meta and meta.grounding_chunks else []):
+            if chunk.web:
+                sources.append({"title": chunk.web.title, "url": chunk.web.uri})
+    return {"answer": response.text or "", "sources": sources[:5]}
+
+
+def web_answer(settings: Settings, question: str, *, ask_google=None) -> dict[str, Any]:
+    if not question.strip():
+        raise ActionError("empty question")
+    result = (ask_google or _ask_google)(question.strip(), settings.quick_model)
+    # Untrusted: web content can't give Jarvis instructions.
+    return {"untrusted_web_answer": result.get("answer", "")[:6000], "sources": result.get("sources", [])}
+
+
+def improve_myself(settings: Settings, request: str, *, improver=None) -> dict[str, Any]:
+    from . import selfupdate
+
+    if len(request.strip()) < 8:
+        raise ActionError("describe the improvement in a sentence")
+    try:
+        return (improver or selfupdate.improve)(request.strip(), model=settings.claude_model)
+    except selfupdate.SelfUpdateError as exc:
+        raise ActionError(str(exc)) from exc
 
 
 REGISTRY: dict[str, Callable[..., dict[str, Any]]] = {
@@ -538,4 +659,16 @@ REGISTRY: dict[str, Callable[..., dict[str, Any]]] = {
     "clipboard_read": clipboard_read,
     "clipboard_write": clipboard_write,
     "set_reminder": set_reminder,
+    "remember": remember,
+    "recall": recall,
+    "forget": forget,
+    "db_add": db_add,
+    "db_find": db_find,
+    "db_update": db_update,
+    "db_delete": db_delete,
+    "set_preference": set_preference,
+    "go_to_sleep": go_to_sleep,
+    "restart_jarvis": restart_jarvis,
+    "web_answer": web_answer,
+    "improve_myself": improve_myself,
 }

@@ -242,7 +242,7 @@ const STATES = {
   speaking:  { amp: .08,  speed: 1.3, scale: .98, glow: 1,   swirl: 0 },
   error:     { amp: .03,  speed: .5,  scale: .85, glow: .5,  swirl: 0 },
 };
-let state = "sleeping", level = 0, levelSmooth = 0, voiceEnv = 0;
+let state = "sleeping", level = 0, levelSmooth = 0, voiceEnv = 0, voiceLevelAt = 0, assistantName = "Jarvis";
 const cur = { ...STATES.sleeping };
 function sizeOrb() {
   const dpr = devicePixelRatio || 1, r = orb.getBoundingClientRect();
@@ -282,7 +282,9 @@ function frame(now) {
   for (const k in target) cur[k] += (target[k] - cur[k]) * Math.min(1, dt * 4);
   levelSmooth += (level - levelSmooth) * Math.min(1, dt * 12);
   level *= Math.pow(.02, dt);                       // decay when no new level arrives
-  if (state === "speaking") {                       // syllable-like envelope for the voice
+  if (state === "speaking" && now - voiceLevelAt < 400) {  // real loudness of the voice being played
+    voiceEnv += (levelSmooth * 1.6 - voiceEnv) * Math.min(1, dt * 14);
+  } else if (state === "speaking") {                // no levels (Windows voice): syllable-like envelope
     voiceEnv += ((Math.random() < .12 ? .6 + Math.random() * .4 : voiceEnv * .82) - voiceEnv) * Math.min(1, dt * 10);
   } else voiceEnv *= Math.pow(.05, dt);
   t += dt * cur.speed * (reduced ? .3 : 1);
@@ -297,7 +299,7 @@ function frame(now) {
 
   // orb
   const w = orb.clientWidth, h = orb.clientHeight, cx = w / 2, cy = h / 2;
-  const react = state === "listening" ? levelSmooth : voiceEnv;
+  const react = state === "listening" ? levelSmooth : Math.min(1, voiceEnv);
   const R = Math.min(w, h) * .3 * (cur.scale + react * .22 + Math.sin(now / 900) * .012);
   const amp = cur.amp + react * .22;
   octx.clearRect(0, 0, w, h);
@@ -340,8 +342,20 @@ const TOOL = {
   copy_to_clipboard: ["📋", "Copying"], set_reminder: ["⏰", "Setting reminder"], system_info: ["💻", "System info"],
   write_note: ["📝", "Writing note"], read_file: ["📄", "Reading file"], list_files: ["🗂️", "Listing files"],
   delete_file: ["🗑️", "Deleting"], look_at_screen: ["👁️", "Looking at screen"], ask_claude: ["🧠", "Asking Claude"],
-  code_task: ["👩‍💻", "Claude coding"],
+  code_task: ["👩‍💻", "Claude coding"], remember: ["🧠", "Remembering"], recall: ["🧠", "Recalling"],
+  forget: ["🧹", "Forgetting"], db_add: ["🗃️", "Saving to your database"], db_find: ["🗃️", "Checking your database"],
+  db_update: ["🗃️", "Updating your database"], db_delete: ["🗃️", "Removing from your database"],
+  search_web: ["🌍", "Searching the web"], set_preference: ["⚙️", "Updating settings"], go_to_sleep: ["💤", "Pausing"],
+  restart_yourself: ["🔄", "Restarting"], improve_myself: ["🛠️", "Improving myself"],
 };
+
+function setName(name) {
+  if (!name) return;
+  assistantName = name; document.title = name;
+  LABELS.idle = `${name} is ready`;
+  $("alertTitle").textContent = `Allow ${name} to continue?`;
+  if (state === "idle") $("status").textContent = LABELS.idle;
+}
 
 function setState(s) {
   const prev = state; state = s; $("island").dataset.state = s; $("status").textContent = LABELS[s] || s;
@@ -382,7 +396,7 @@ let approvalId = null, approvalTimer = null;
 function showApproval(ev) {
   approvalId = ev.id;
   const [icon, label] = TOOL[ev.action === "media_key" ? "media_control" : ev.action] || ["⚙️", ev.action];
-  $("alertTitle").textContent = `Allow Jarvis: ${label.toLowerCase()}?`;
+  $("alertTitle").textContent = `Allow ${assistantName}: ${label.toLowerCase()}?`;
   $("alertText").textContent = Object.entries(ev.args || {}).map(([k, v]) => `${k}: ${v}`).join(" · ");
   const bar = $("alertTimer"); bar.style.transition = "none"; bar.style.transform = "scaleX(1)";
   requestAnimationFrame(() => { bar.style.transition = `transform ${ev.seconds || 45}s linear`; bar.style.transform = "scaleX(0)"; });
@@ -426,7 +440,11 @@ let lastYou = "";
 function handle(ev) {
   switch (ev.kind) {
     case "state": setState(ev.state); break;
-    case "level": level = Math.max(level, Math.min(1, ev.value)); break;
+    case "level":
+      level = Math.max(level, Math.min(1, ev.value));
+      if (ev.source === "voice") voiceLevelAt = performance.now();
+      break;
+    case "profile": setName(ev.assistant_name); break;
     case "heard": lastYou = ev.text; caption(ev.text, ""); addBubble("me", ev.text); break;
     case "tool": addChip(ev.name, ev.args); break;
     case "screen": addChip("look_at_screen"); break;

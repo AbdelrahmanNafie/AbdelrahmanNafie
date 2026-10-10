@@ -21,7 +21,7 @@ flowchart LR
 | Role | Who | Can it touch your laptop? |
 |---|---|---|
 | Ears | Gemini (`gemini-3.5-flash` + backups, configurable) | **No.** Text in, text out. |
-| Brain | Claude | **Only** through the 7 Jarvis tools. Built-in shell and file tools are disabled. |
+| Brain | Claude | **Only** through the Jarvis tools. Built-in shell and file tools are disabled. |
 | Policy | `jarvis/policy.py` | Decides. Unknown action → deny. Delete → human approval. Kill switch → reads only. |
 | Hands | `jarvis/actions.py` | Paths are confined to allowed folders, apps come from an allowlist, and nothing runs through a shell. |
 
@@ -55,7 +55,7 @@ python -m jarvis.doctor                          # checks every part, step by st
 python -m jarvis.dashboard                       # open the printed link
 python -m jarvis.bridge --text "افتح النوت باد"   # typed Arabic
 python -m jarvis.bridge --mic 5                  # speak for 5 seconds
-pytest                                           # 98 tests
+pytest                                           # 115 tests
 ```
 
 ### Jarvis mode: "Hey Jarvis" and spoken replies
@@ -65,7 +65,7 @@ pip install -e ".[mic,wake,screen,ui]"                # once
 python -m jarvis.assistant                            # say "Hey Jarvis", then speak
 python -m jarvis.assistant --push-to-talk             # press Enter instead of the wake word
 python -m jarvis.assistant --to print                 # test without Claude (repeats what it understood)
-python -m jarvis.assistant --voice gemini             # natural Gemini voice (default: Windows voice)
+python -m jarvis.assistant --voice windows            # built-in Windows voice (default: natural Gemini voice)
 ```
 
 - The wake word runs **offline** (openWakeWord, ready-made "Hey Jarvis" model). No audio leaves the laptop until it hears that phrase.
@@ -103,10 +103,36 @@ By default Gemini (the "quick brain") does light tasks itself in a few seconds, 
 | "Lock my laptop" | `lock_screen` | — |
 | "What's open?", "Close Chrome" | `list_running_apps`, `close_app` | Closing **needs your approval**; it closes gracefully and never touches system processes |
 | "Copy that", "What did I copy?" | `copy_to_clipboard`, `read_clipboard` | Clipboard text is treated as data |
-| "Remind me in 20 minutes to…" | `set_reminder` | Spoken while Jarvis is running |
+| "Remind me in 20 minutes to…" | `set_reminder` | Saved in the database; fires even after a restart |
+| "What's the news / price / weather…" | `search_web` | Google Search grounding; answers are treated as data |
+| "I work as… / my project is…" (said naturally) | `remember`, `recall`, `forget` | Stays on your laptop (SQLite) |
+| "Add a task…", "What's on my list?", "Log 200 EGP for lunch" | `db_add`, `db_find`, `db_update`, `db_delete` | Your personal database; deletes are soft |
+| "Call me Abdelrahman", "Your name is Nova", "Use the Kore voice", "Answer in Arabic" | `set_preference` | Saved in `profile.json` |
+| "Pause" / "Go to sleep", "Restart" | `go_to_sleep`, `restart_yourself` | — |
+| "Improve yourself: add a…" | `improve_myself` | **Needs your approval**; see below |
 | Anything complex | `ask_claude` | Claude, with the same tools |
 
 When an approval is needed in voice mode, Jarvis asks out loud: press **Y** to allow or **N** to cancel, or use the dashboard.
+
+### A personal assistant, not a command parser
+
+- **Personality:** every turn Gemini gets a fresh persona prompt with your name, its name, what it remembers about you, your open items, upcoming reminders and the time. It chats, answers general questions from its own knowledge, and searches the web for anything current.
+- **Memory:** when you mention something lasting (your work, projects, people, preferences), it saves it quietly and uses it later. Ask "what do you know about me?" or "forget that".
+- **Proactive:** after helping, it may offer one short, relevant next step. A start-up briefing lists open and overdue tasks and the next reminder. A background check speaks due reminders and warns once about a low battery. Turn suggestions off with "stop making suggestions" (`proactive` off).
+- **Voice:** the natural Gemini voice `Aoede` by default (`Kore`, `Leda`, `Zephyr`… also work). It starts speaking after the first sentence, and the orb follows the real loudness of the voice. If Gemini is over its quota, it switches to the Windows voice (female if installed) for 10 minutes.
+- **Names:** the assistant's name changes everywhere, but the offline wake phrase stays **"Hey Jarvis"**: openWakeWord ships a model for that phrase only. A custom wake word needs a trained model.
+
+### Self-improvement (`improve_myself`)
+
+Say *"improve yourself: when I say 'focus mode', mute the volume and open my to-do list"*. After you approve:
+
+1. The Jarvis folder must have no uncommitted changes (a clean point to return to).
+2. Claude Code edits the code with file tools only (no shell), on your subscription.
+3. Changes to the safety core (`policy.py`, `gateway.py`, `selfupdate.py`) are refused and undone.
+4. The full test suite runs. If anything fails, every change is undone.
+5. If tests pass, the change is committed **locally** (never pushed). Say "restart" to load it, and undo it with `git revert <commit>`.
+
+`python -m jarvis.assistant` runs a small supervisor that starts the assistant again when you say "restart".
 
 **Conversation mode:** say "Hey Jarvis" once. After each answer Jarvis keeps listening for a follow-up (`--follow-up 8` seconds), so you can keep talking ("now open it", "make it louder"). Stay quiet and it goes back to sleep.
 
@@ -135,7 +161,10 @@ Install [Tailscale](https://tailscale.com) on the laptop and the phone. Start th
 | `JARVIS_HOME/apps.json` | notepad, calculator, … | Spoken name → executable allowlist |
 | `JARVIS_GEMINI_MODEL` | `gemini-3.5-flash` | Ears model (tried first) |
 | `JARVIS_GEMINI_FALLBACKS` | `gemini-3.5-flash-lite,gemini-3.8-flash` | Also asked in parallel if the first model is slow (>4 s) or busy; the fastest answer wins |
-| `JARVIS_VOICE` | `windows` | Spoken replies: `windows`, `gemini` or `off` |
+| `JARVIS_VOICE` | `gemini` | Spoken replies: `gemini` (voice from your profile), `windows` or `off` |
+| `JARVIS_TTS_MODEL` | `gemini-3.8-flash-tts` | Gemini speech model |
+| `JARVIS_THINKING` | `low` | Quick brain thinking level (`minimal` is faster, `medium` is smarter) |
+| `JARVIS_HOME/profile.json` | Jarvis / Aoede / English | Your name, its name, voice, reply language (`english`, `arabic`, `same`), proactive. Change it by voice |
 | `JARVIS_QUICK_MODEL` | `gemini-3.5-flash` | Gemini model that does light tasks itself |
 | `JARVIS_CODE_DIRS` | `~/AbdelrahmanNafie`, `~/Projects`, `~/source/repos` (if they exist) | Folders Claude may edit for coding tasks (separate with `;`) |
 | `JARVIS_USER_DIRS` | `1` | `0` limits Jarvis to its own workspace instead of Documents/Desktop/Downloads |

@@ -2,7 +2,7 @@
 
 - record_until_silence: starts when you speak, stops ~2 s after you stop.
 - WakeWord: local "Hey Jarvis" detector (openWakeWord); no audio leaves the laptop.
-- Speaker: says the reply out loud (Windows voice by default, Gemini voice optional).
+- Speaker: says the reply out loud (natural Gemini voice, Windows voice as fallback).
 
 Audio libraries are imported lazily so the rest of Jarvis works without them.
 """
@@ -220,40 +220,139 @@ _WINDOWS_SAY = (
     "[Console]::InputEncoding=[Text.Encoding]::UTF8;"
     "Add-Type -AssemblyName System.Speech;"
     "$s=New-Object System.Speech.Synthesis.SpeechSynthesizer;"
+    "try{$s.SelectVoiceByHints([System.Speech.Synthesis.VoiceGender]::Female)}catch{};"
     "$s.Rate=1;"
     "$s.Speak([Console]::In.ReadToEnd())"
 )
 
+# How the Gemini voice should sound. Gemini TTS follows plain-language style directions.
+_STYLE = ("Read this aloud as a warm, friendly young woman talking naturally to a friend: relaxed pace, "
+          "real intonation, light smile in the voice. Read only the text after the colon")
+
+
+def split_for_speech(text: str, first_max: int = 140) -> list[str]:
+    """First sentence alone (so the voice starts sooner), the rest in one piece.
+
+    Two TTS calls at most per reply: quick start without burning extra Gemini quota.
+    """
+    import re
+
+    text = " ".join(text.split())
+    if len(text) <= first_max:
+        return [text] if text else []
+    m = re.search(r"(?<=[.!?؟。])\s", text[: first_max + 1])
+    if not m:
+        return [text]
+    return [text[: m.start()].strip(), text[m.end():].strip()]
+
 
 class Speaker:
-    """voice='windows' (free, instant), 'gemini' (natural, uses Gemini credits) or 'off'."""
+    """Says replies out loud.
 
-    def __init__(self, voice: str = "windows", *, gemini_model: str = "gemini-3.8-flash-tts",
-                 gemini_voice: str = "Kore", client=None, runner=subprocess.run):
+    voice='gemini'  natural Gemini voice (default; female 'Aoede'), falls back to Windows on errors
+    voice='windows' built-in Windows voice (female if one is installed); free and instant
+    voice='off'     silent
+    """
+
+    QUOTA_COOLDOWN_S = 600  # after a 429, use the Windows voice for a while instead of failing every reply
+
+    def __init__(self, voice: str = "gemini", *, gemini_model: str | None = None,
+                 gemini_voice: str = "Aoede", client=None, runner=subprocess.run, on_level=None):
         self.voice = voice
-        self.gemini_model = gemini_model
+        self.gemini_model = gemini_model or os.environ.get("JARVIS_TTS_MODEL", "gemini-3.8-flash-tts")
         self.gemini_voice = gemini_voice
         self.client = client
         self.runner = runner
+        self.on_level = on_level  # 0..1 loudness while speaking, for the orb
+        self._gemini_off_until = 0.0
+
+    def set_voice(self, name: str) -> None:
+        """'windows' or any Gemini voice name (from the profile)."""
+        if self.voice == "off":
+            return
+        if name == "windows":
+            self.voice = "windows"
+        else:
+            self.voice, self.gemini_voice = "gemini", name
 
     def say(self, text: str, *, from_other_thread: bool = False) -> None:
+        import time
+
         text = text.strip()
         if not text or self.voice == "off":
             return
-        if from_other_thread:  # e.g. a reminder timer: avoid the main thread's COM voice
-            if sys.platform == "win32":
-                self.runner(["powershell", "-NoProfile", "-NonInteractive", "-Command", _WINDOWS_SAY],
-                            input=text, text=True, encoding="utf-8", capture_output=True)
-            else:
-                print(f"🔊 {text}")
-            return
-        if self.voice == "gemini":
+        if self.voice == "gemini" and time.monotonic() >= self._gemini_off_until:
             try:
-                return self._play_wav(self._gemini_tts(text))
+                return self._say_gemini(text)
             except Exception as exc:  # noqa: BLE001 — never lose the answer because of the voice
-                print(f"(Gemini voice failed: {exc}; using the Windows voice)")
+                if "429" in str(exc) or "RESOURCE_EXHAUSTED" in str(exc):
+                    self._gemini_off_until = time.monotonic() + self.QUOTA_COOLDOWN_S
+                    print("(Gemini voice is over its quota; using the Windows voice for 10 minutes)")
+                else:
+                    print(f"(Gemini voice failed: {str(exc)[:160]}; using the Windows voice)")
+        if from_other_thread:  # e.g. a reminder thread: avoid the main thread's COM voice
+            return self._powershell_say(text)
         self._windows(text)
 
+    # ------------------------------------------------------------ gemini
+    def _say_gemini(self, text: str) -> None:
+        """Synthesize the next piece while the current one plays."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        parts = split_for_speech(text)
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            pending = pool.submit(self._gemini_tts, parts[0])
+            for i in range(len(parts)):
+                wav = pending.result()
+                if i + 1 < len(parts):
+                    pending = pool.submit(self._gemini_tts, parts[i + 1])
+                self._play_wav(wav)
+
+    def _gemini_tts(self, text: str) -> bytes:
+        from google.genai import types
+
+        if self.client is None:
+            from .ears import make_client
+
+            self.client = make_client()
+        response = self.client.models.generate_content(
+            model=self.gemini_model,
+            contents=f"{_STYLE}: {text}",
+            config=types.GenerateContentConfig(
+                response_modalities=["AUDIO"],
+                speech_config=types.SpeechConfig(voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=self.gemini_voice))),
+            ),
+        )
+        data = response.candidates[0].content.parts[0].inline_data.data
+        # Docs describe raw 24 kHz 16-bit mono PCM; accept a ready WAV too.
+        return data if data[:4] == b"RIFF" else to_wav(data, rate=24_000)
+
+    def _play_wav(self, wav_bytes: bytes) -> None:
+        import numpy as np
+
+        with wave.open(io.BytesIO(wav_bytes)) as wav:
+            rate = wav.getframerate()
+            pcm = np.frombuffer(wav.readframes(wav.getnframes()), dtype=np.int16)
+        try:
+            sd = _sounddevice()
+        except RuntimeError:
+            sd = None
+        if sd is None:
+            if sys.platform == "win32":
+                import winsound
+
+                winsound.PlaySound(wav_bytes, winsound.SND_MEMORY)
+            return
+        block = rate // 20  # 50 ms blocks: write() paces playback, and we report each block's loudness
+        with sd.OutputStream(samplerate=rate, channels=1, dtype="int16") as out:
+            for i in range(0, len(pcm), block):
+                chunk = pcm[i:i + block]
+                if self.on_level:
+                    self.on_level(min(1.0, level(chunk) / 6000))
+                out.write(chunk.reshape(-1, 1))
+
+    # ----------------------------------------------------------- windows
     def _windows(self, text: str) -> None:
         if sys.platform != "win32":
             print(f"🔊 {text}")
@@ -262,7 +361,13 @@ class Speaker:
         if sapi is not None:
             sapi.Speak(text)  # direct call: no 1-2 s PowerShell start-up
             return
-        # Fallback. Text goes in on stdin, never into the command line, so nothing in it can run as code.
+        self._powershell_say(text)
+
+    def _powershell_say(self, text: str) -> None:
+        if sys.platform != "win32" and self.runner is subprocess.run:
+            print(f"🔊 {text}")
+            return
+        # Text goes in on stdin, never into the command line, so nothing in it can run as code.
         self.runner(["powershell", "-NoProfile", "-NonInteractive", "-Command", _WINDOWS_SAY],
                     input=text, text=True, encoding="utf-8", capture_output=True)
 
@@ -275,43 +380,16 @@ class Speaker:
             try:
                 import win32com.client
 
-                Speaker._sapi_voice = win32com.client.Dispatch("SAPI.SpVoice")
+                sapi = win32com.client.Dispatch("SAPI.SpVoice")
+                female = sapi.GetVoices("Gender=Female")
+                if female.Count:
+                    sapi.Voice = female.Item(0)  # e.g. Microsoft Zira
+                Speaker._sapi_voice = sapi
             except Exception:  # noqa: BLE001 — pywin32 missing: fall back to PowerShell
                 Speaker._sapi_voice = False
         return Speaker._sapi_voice or None
 
-    def _gemini_tts(self, text: str) -> bytes:
-        from google import genai
-        from google.genai import types
-
-        client = self.client or genai.Client()
-        response = client.models.generate_content(
-            model=self.gemini_model,
-            contents=f"Say in a calm, friendly assistant voice: {text}",
-            config=types.GenerateContentConfig(
-                response_modalities=["AUDIO"],
-                speech_config=types.SpeechConfig(voice_config=types.VoiceConfig(
-                    prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=self.gemini_voice))),
-            ),
-        )
-        data = response.candidates[0].content.parts[0].inline_data.data
-        # Docs describe raw 24 kHz 16-bit mono PCM; accept a ready WAV too.
-        return data if data[:4] == b"RIFF" else to_wav(data, rate=24_000)
-
-    @staticmethod
-    def _play_wav(wav_bytes: bytes) -> None:
-        if sys.platform == "win32":
-            import winsound
-
-            winsound.PlaySound(wav_bytes, winsound.SND_MEMORY)
-            return
-        import numpy as np
-
-        sd = _sounddevice()
-        with wave.open(io.BytesIO(wav_bytes)) as wav:
-            pcm = np.frombuffer(wav.readframes(wav.getnframes()), dtype=np.int16)
-            sd.play(pcm, wav.getframerate(), blocking=True)
-
 
 def default_voice() -> str:
-    return os.environ.get("JARVIS_VOICE", "windows")
+    """JARVIS_VOICE overrides; otherwise the natural Gemini voice (falls back to Windows on its own)."""
+    return os.environ.get("JARVIS_VOICE", "gemini")

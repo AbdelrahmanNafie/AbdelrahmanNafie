@@ -248,15 +248,18 @@ def test_clipboard(settings, store):
     assert calls[-1] == "مرحبا"  # sent on stdin, not in the command line
 
 
-def test_reminder_fires(settings, store):
+def test_reminder_is_saved_and_survives_a_restart(settings, store):
     import time
 
     from jarvis.gateway import Gateway
-    heard = []
-    r = Gateway(settings, store, notify=heard.append).request("set_reminder", {"minutes": 0.001, "message": "tea"})
+    from jarvis.store import Store
+    r = Gateway(settings, store).request("set_reminder", {"minutes": 1, "message": "tea"})
     assert r["status"] == "ok"
-    time.sleep(0.3)
-    assert heard == ["tea"]
+    again = Store(settings.db_path)  # a new process reads the same file
+    assert [x["message"] for x in again.upcoming_reminders()] == ["tea"]
+    assert again.take_due_reminders(time.time()) == []
+    assert [x["message"] for x in again.take_due_reminders(time.time() + 61)] == ["tea"]
+    assert again.take_due_reminders(time.time() + 61) == []  # fires once
 
 
 def test_system_info_has_time():
