@@ -55,7 +55,7 @@ python -m jarvis.doctor                          # checks every part, step by st
 python -m jarvis.dashboard                       # open the printed link
 python -m jarvis.bridge --text "افتح النوت باد"   # typed Arabic
 python -m jarvis.bridge --mic 5                  # speak for 5 seconds
-pytest                                           # 162 tests
+pytest                                           # 174 tests
 ```
 
 ### Jarvis mode: "Hey Jarvis" and spoken replies
@@ -143,6 +143,36 @@ When an approval is needed in voice mode, Jarvis asks out loud: press **Y** to a
 - **False alarms resume:** if an interruption has no real speech in it, or wasn't meant for Jarvis, it carries on from where it stopped.
 - **The voice never goes silent:** if the voice fails mid-reply, each sentence is retried once, then the rest is finished in the backup voice. Failures are logged.
 
+### Using apps on screen (and WhatsApp)
+
+Jarvis can now work in apps that are already open, the way you would:
+- see every window and browser tab (`list_windows`);
+- bring one to the front, even a background tab (`switch_to`);
+- look at it (`look_at_screen`);
+- click things described in words (`click_on`, located by Gemini on a screenshot of that window);
+- type (`type_text`, pasted, so Arabic works) and press keys or shortcuts (`press_keys`);
+- look again to check.
+
+**WhatsApp:** for example, "Go to my WhatsApp tab, open Soli's chat and send: I'll be there at 8". The steps:
+
+1. Switch to your WhatsApp Web tab.
+2. Search for "Soli". Close spellings match: Soly/Soli.
+3. Check the chat header really says Soli.
+4. Click the message box and type the text.
+5. Ask "Send this to Soli: …? Shall I send it?" Answer **yes / ابعت / تمام** (or press Y, or tap the app).
+6. Press Enter, then check the message appears as sent.
+
+If the name isn't found, it tells you the names it can see.
+
+**Boundaries:**
+- It works only inside your own WhatsApp Web tab, already open and logged in in your browser.
+- It never opens WhatsApp itself and never uses another number, account, app or API. If no WhatsApp tab is open, it says so.
+- It never types into a chat it couldn't confirm on screen.
+- Sending needs your "yes" unless you say "send without asking" (`confirm_sends` off).
+- It refuses to type or press keys into terminals, PowerShell or the Run box, so text on a web page can't get commands run.
+
+**Check it works on your laptop:** `python -m jarvis.desktop` lists the windows and browser tabs Jarvis can see, and whether it found your WhatsApp tab.
+
 ### Something went wrong? `python -m jarvis.report`
 
 Writes `JARVIS_HOME/report.md` for the last 24 hours (`--hours 72` for more). It covers:
@@ -211,6 +241,7 @@ Install [Tailscale](https://tailscale.com) on the laptop and the phone. Start th
 | `JARVIS_BARGE_IN` | `auto` | `auto` (talk to interrupt with headphones, wake word on speakers), `talk`, `wake`, `off` |
 | `JARVIS_NEAR_MARGIN` | `12` | dB quieter than your usual level that still counts as nearby |
 | `JARVIS_NEAR_SNR` | `12` | Before calibration: dB above the room noise needed |
+| `profile.json` `confirm_sends` | `true` | Ask "send it?" before sending a message (say "send without asking" to turn off) |
 | `JARVIS_TTS_MODEL` | `gemini-3.8-flash-tts` | Gemini speech model |
 | `JARVIS_THINKING` | `low` | Thinking level for the first step of each request (later steps use `minimal`). `minimal` is fastest |
 | `JARVIS_TTS_STYLE` | *(none)* | Optional short style in front of the spoken text, e.g. `Say warmly` |

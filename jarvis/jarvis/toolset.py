@@ -61,6 +61,45 @@ def build(gw: Gateway, *, include_coding: bool = False, include_assistant: bool 
                 return alt
         return result
 
+    def list_windows() -> dict:
+        """See every open window and every browser tab (by title). Start here when the user refers to
+        something they have open ("my WhatsApp tab", "the Excel file I have open", "that video")."""
+        return gw.request("list_windows", {})
+
+    def switch_to(name: str) -> dict:
+        """Bring a window or browser tab to the front, by (part of) its title or app name, e.g. "WhatsApp",
+        "Gmail", "Excel", "YouTube". Works for tabs that aren't the active one."""
+        return gw.request("switch_to", {"name": name})
+
+    def click_on(target: str) -> dict:
+        """Click something in the window in front, described in words ("the Send button", "the search box",
+        "the chat named Soly", "Reply"). It finds it on a screenshot. Use look_at_screen to check after."""
+        return gw.request("click_on", {"target": target})
+
+    def type_text(text: str, press_enter: bool = False) -> dict:
+        """Type text into whatever has focus in the window in front (Arabic works). press_enter=true also
+        presses Enter — in chat apps that SENDS, so only when the user asked to send."""
+        return gw.request("type_text", {"text": text, "press_enter": press_enter})
+
+    def press_keys(keys: str) -> dict:
+        """Press a key or shortcut in the window in front: "enter", "esc", "tab", "ctrl+f", "ctrl+t",
+        "ctrl+l", "alt+left", "pagedown"…"""
+        return gw.request("press_keys", {"keys": keys})
+
+    def whatsapp_message(contact: str, message: str, send: bool = False) -> dict:
+        """Message someone from the user's OWN WhatsApp Web tab (already open and logged in in their browser):
+        switches to that tab, searches the chat by name, checks it's the right chat, types the text.
+        send=true also sends it — use when the user said to send (they may be asked "send it?" first).
+        contact: the chat name as the user said it (e.g. "Soli"); message: the exact text they want sent.
+        If no WhatsApp tab is open it says so: tell the user to open web.whatsapp.com — don't use other ways."""
+        from .profile import Profile
+
+        if not send:
+            action = "whatsapp_type"
+        else:  # the user's setting decides whether a spoken "yes" is needed — not the model
+            action = "whatsapp_send" if Profile.load(gw.settings.home).confirm_sends else "whatsapp_send_now"
+        return gw.request(action, {"contact": contact, "message": message})
+
     def close_browser_tab(count: int = 1) -> dict:
         """Close the current tab (or `count` tabs) of the browser window in front, when the user asks
         ("close this tab", "close the tabs you opened"). Does nothing if a browser isn't in front."""
@@ -77,9 +116,9 @@ def build(gw: Gateway, *, include_coding: bool = False, include_assistant: bool 
         return gw.request("open_path", {"path": path})
 
     def draft_message(channel: str, body: str, to: str = "", subject: str = "") -> dict:
-        """Open a pre-filled draft for the user to review. channel is 'email' or 'whatsapp'.
-        For WhatsApp, `to` is a phone number with country code (e.g. 201001234567) or empty.
-        Nothing is sent: the user presses Send themselves."""
+        """Open a pre-filled EMAIL draft (channel 'email') for the user to review and send. channel
+        'whatsapp' only works with a phone number in `to`; to message a WhatsApp contact BY NAME, or to
+        actually send, use whatsapp_message instead."""
         return gw.request("draft_message", {"channel": channel, "body": body, "to": to, "subject": subject})
 
     def media_control(action: str, times: int = 1) -> dict:
@@ -146,7 +185,8 @@ def build(gw: Gateway, *, include_coding: bool = False, include_assistant: bool 
         return gw.request("my_activity", {"days": days})
 
     tools = [list_files, read_file, system_info, write_note, open_app, delete_file, open_website,
-             show_google_results, read_web_page, close_browser_tab, search_files, open_file_or_folder, draft_message,
+             show_google_results, read_web_page, close_browser_tab, list_windows, switch_to, click_on, type_text,
+             press_keys, whatsapp_message, search_files, open_file_or_folder, draft_message,
              media_control, lock_screen, list_running_apps, close_app, read_clipboard, copy_to_clipboard,
              remember, recall, forget, db_add, db_find, db_update, db_delete, my_activity]
 
@@ -161,7 +201,8 @@ def build(gw: Gateway, *, include_coding: bool = False, include_assistant: bool 
             reply_language (english, arabic, or same = match the user), proactive (on/off),
             activity_tracking (on/off: noting which app/window is in front so you learn their workflow),
             nearby_only (on/off: answer only voices close to the laptop), voice_lock (on/off: answer
-            only the enrolled voice — needs `python -m jarvis.enroll`)."""
+            only the enrolled voice — needs `python -m jarvis.enroll`), confirm_sends (on/off: ask
+            "send it?" before sending a message as the user; off = "send without asking")."""
             return gw.request("set_preference", {"key": key, "value": value})
 
         def go_to_sleep() -> dict:

@@ -473,6 +473,104 @@ def close_browser_tab(settings: Settings, count: int = 1, *, press_combo: Callab
     return {"closed_tabs": closed}
 
 
+# ---------------------------------------------------------------- apps on screen
+def _desk(desktop):
+    if desktop is not None:
+        return desktop
+    if sys.platform != "win32":
+        raise ActionError("controlling apps on screen only works on Windows")
+    from .desktop import Desktop
+
+    return Desktop()
+
+
+def _eyes(settings: Settings, vision):
+    if vision is not None:
+        return vision
+    from .vision import gemini_vision
+
+    return gemini_vision(settings)
+
+
+def _on_screen(fn):
+    """Turn desktop/vision failures into clear messages for the brain."""
+    import functools
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        from .desktop import DesktopError
+
+        try:
+            return fn(*args, **kwargs)
+        except DesktopError as exc:
+            raise ActionError(str(exc)) from exc
+    return wrapper
+
+
+@_on_screen
+def list_windows(settings: Settings, *, desktop=None) -> dict[str, Any]:
+    desk = _desk(desktop)
+    tabs = [{"browser": t["app"], "tab": t["tab"]} for t in desk.browser_tabs()]
+    wins = [{"app": w["app"], "title": w["title"]} for w in desk.windows()]
+    # Titles are data (a web page chooses its own title): never follow instructions in them.
+    return {"untrusted_windows": wins[:40], "untrusted_browser_tabs": tabs[:60]}
+
+
+@_on_screen
+def switch_to(settings: Settings, name: str, *, desktop=None) -> dict[str, Any]:
+    desk = _desk(desktop)
+    target = desk.find(name)
+    if target is None:
+        raise ActionError(f"no open window or browser tab matches '{name}' (use list_windows to see them)")
+    desk.activate(target)
+    return {"in_front": target["label"]}
+
+
+@_on_screen
+def click_on(settings: Settings, target: str, *, desktop=None, vision=None) -> dict[str, Any]:
+    from . import skills
+
+    return skills.click_on(_desk(desktop), _eyes(settings, vision), target)
+
+
+@_on_screen
+def type_text(settings: Settings, text: str, press_enter: bool = False, *, desktop=None) -> dict[str, Any]:
+    desk = _desk(desktop)
+    if not text:
+        raise ActionError("nothing to type")
+    desk.check_safe()
+    desk.type(text)
+    if press_enter:
+        desk.keys("enter")
+    return {"typed_chars": len(text), "pressed_enter": bool(press_enter)}
+
+
+@_on_screen
+def press_keys(settings: Settings, keys: str, *, desktop=None) -> dict[str, Any]:
+    desk = _desk(desktop)
+    desk.check_safe()
+    desk.keys(keys)
+    return {"pressed": keys}
+
+
+@_on_screen
+def whatsapp_type(settings: Settings, contact: str, message: str, *, desktop=None, vision=None) -> dict[str, Any]:
+    from . import skills
+
+    return skills.whatsapp_message(_desk(desktop), _eyes(settings, vision), contact, message, send=False)
+
+
+@_on_screen
+def whatsapp_send(settings: Settings, contact: str, message: str, *, desktop=None, vision=None) -> dict[str, Any]:
+    from . import skills
+
+    return skills.whatsapp_message(_desk(desktop), _eyes(settings, vision), contact, message, send=True)
+
+
+# The same, for users who said "send without asking" (profile confirm_sends off). Same checks on screen.
+whatsapp_send_now = whatsapp_send
+
+
 def _lock() -> None:
     import ctypes
 
@@ -727,4 +825,12 @@ REGISTRY: dict[str, Callable[..., dict[str, Any]]] = {
     "improve_myself": improve_myself,
     "my_activity": my_activity,
     "close_browser_tab": close_browser_tab,
+    "list_windows": list_windows,
+    "switch_to": switch_to,
+    "click_on": click_on,
+    "type_text": type_text,
+    "press_keys": press_keys,
+    "whatsapp_type": whatsapp_type,
+    "whatsapp_send": whatsapp_send,
+    "whatsapp_send_now": whatsapp_send_now,
 }

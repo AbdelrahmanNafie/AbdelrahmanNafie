@@ -58,6 +58,14 @@ ACTION_RISK: dict[str, Risk] = {
     "web_answer": Risk.READ,
     "my_activity": Risk.READ,
     "close_browser_tab": Risk.CHANGE,
+    "list_windows": Risk.READ,
+    "switch_to": Risk.CHANGE,
+    "click_on": Risk.CHANGE,
+    "type_text": Risk.CHANGE,
+    "press_keys": Risk.CHANGE,
+    "whatsapp_type": Risk.CHANGE,  # opens the chat and types; nothing leaves the laptop
+    "whatsapp_send": Risk.DANGER,  # sends a message as the user: they confirm first
+    "whatsapp_send_now": Risk.CHANGE,  # only offered when the user turned confirmation off
     "improve_myself": Risk.DANGER,  # edits Jarvis's own code (tested, auto-undone on failure)
 }
 

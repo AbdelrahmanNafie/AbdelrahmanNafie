@@ -19,6 +19,7 @@ import argparse
 import collections
 import os
 import random
+import re
 import subprocess
 import sys
 import threading
@@ -303,6 +304,33 @@ def _resume(store: Store, speaker, answer: str, heard: str):
     return speaker.say(rest, interruptible=True) if rest else None
 
 
+_YES = re.compile(r"\b(yes|yeah|yep|yup|sure|ok|okay|send|send it|go ahead|do it|confirm|correct|right|please do)\b|"
+                  r"(^|\s)(اه|آه|ايوه|أيوه|ايوة|أيوة|تمام|ماشي|ابعت|ابعتها|ابعته|يلا|أكيد|اكيد|نعم|موافق)($|\s)", re.I)
+_NO = re.compile(r"\b(no|nope|cancel|stop|don'?t|wait|hold on|never mind)\b|"
+                 r"(^|\s)(لا|لأ|لاء|استنى|الغي|إلغي|بلاش|متبعتش|وقف)($|\s)", re.I)
+
+
+def yes_or_no(*texts: str) -> bool | None:
+    """A spoken answer to "shall I?": True, False, or None when it's unclear. "No" wins ties."""
+    said = " ".join(t for t in texts if t)
+    if _NO.search(said):
+        return False
+    if _YES.search(said):
+        return True
+    return None
+
+
+def approval_question(action: str, args: dict) -> str:
+    """What Jarvis says when it needs a yes: the exact thing it's about to do."""
+    if action == "whatsapp_send":
+        return f"Send this to {args.get('contact', 'them')} on WhatsApp: {args.get('message', '')}. Shall I send it?"
+    if action == "delete_file":
+        return f"Delete {args.get('path', 'that file')}? It goes to the Jarvis trash. Yes or no?"
+    if action == "close_app":
+        return f"Close {args.get('name', 'that app')}? Unsaved work could be lost. Yes or no?"
+    return f"I need your OK to {action.replace('_', ' ')}. Yes or no?"
+
+
 def _pick_voice(raw: voice.Speaker, choice: str, profile_voice: str) -> None:
     """--voice auto (default): the profile's voice decides the engine (Ava → Edge, Aoede → Gemini)."""
     if choice in ("off", "windows"):
@@ -395,20 +423,51 @@ def main(argv: list[str] | None = None) -> int:
 
     quick = None
     if args.to == "quick":
+        spoken_answer: dict = {"token": None, "value": None}
+
+        def listen_for_answer(token: str) -> None:
+            """Say "yes / send it / تمام" or "no / لا" instead of pressing a key."""
+            try:
+                audio = voice.record_until_silence(max_s=8, no_speech_s=max(5.0, settings.approval_wait_s - 3))
+                if audio is None or spoken_answer["token"] != token:
+                    return
+                heard = hear(settings, store, audio=audio)
+                if heard is not None and spoken_answer["token"] == token:
+                    spoken_answer["value"] = yes_or_no(heard.original, heard.english)
+                    print(f"   🗣  {heard.original} → {spoken_answer['value']}", flush=True)
+            except Exception as exc:  # noqa: BLE001 — keys and the app still work
+                print(f"   (couldn't listen for a spoken yes/no: {exc})")
+
         def announce(what: str) -> None:
-            print(f"\n🔐 Approval needed: {what}\n   Press Y to approve, N to cancel (or use the app).", flush=True)
+            print(f"\n🔐 Approval needed: {what}\n   Say yes or no, press Y / N, or use the app.", flush=True)
             pending = store.pending_approvals()
+            token = None
             if pending:
                 p = pending[-1]
+                token = p["id"]
                 ui.emit("approval", id=p["id"], action=p["action"], args=p["args"], seconds=settings.approval_wait_s)
-            speaker.say("I need your approval.")
+                speaker.say(approval_question(p["action"], p["args"]))
+            else:
+                speaker.say("I need your approval. Yes or no?")
+            spoken_answer.update(token=token, value=None)
+            threading.Thread(target=listen_for_answer, args=(token,), daemon=True).start()
+
+        def approval_key() -> bool | None:
+            key = voice.yes_no_pressed()
+            if key is not None:
+                spoken_answer["token"] = None  # decided: ignore a late spoken answer
+                return key
+            if spoken_answer["value"] is not None:
+                value, spoken_answer["value"], spoken_answer["token"] = spoken_answer["value"], None, None
+                return value
+            return None
 
         def on_profile(p: Profile) -> None:  # "call me…", "your name is…", "use a different voice"
             if args.voice not in ("off", "windows"):
                 raw_speaker.set_voice(p.voice)
             ui.emit("profile", assistant_name=p.assistant_name, user_name=p.user_name)
 
-        gateway = Gateway(settings, store, on_approval_needed=announce, approval_key=voice.yes_no_pressed,
+        gateway = Gateway(settings, store, on_approval_needed=announce, approval_key=approval_key,
                           control=control, on_profile=on_profile)
 
         def claude(task: str) -> str:
