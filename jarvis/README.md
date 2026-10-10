@@ -55,13 +55,13 @@ python -m jarvis.doctor                          # checks every part, step by st
 python -m jarvis.dashboard                       # open the printed link
 python -m jarvis.bridge --text "افتح النوت باد"   # typed Arabic
 python -m jarvis.bridge --mic 5                  # speak for 5 seconds
-pytest                                           # 92 tests
+pytest                                           # 98 tests
 ```
 
 ### Jarvis mode: "Hey Jarvis" and spoken replies
 
 ```powershell
-pip install -e ".[mic,wake]"                          # once
+pip install -e ".[mic,wake,screen,ui]"                # once
 python -m jarvis.assistant                            # say "Hey Jarvis", then speak
 python -m jarvis.assistant --push-to-talk             # press Enter instead of the wake word
 python -m jarvis.assistant --to print                 # test without Claude (repeats what it understood)
@@ -71,6 +71,20 @@ python -m jarvis.assistant --voice gemini             # natural Gemini voice (de
 - The wake word runs **offline** (openWakeWord, ready-made "Hey Jarvis" model). No audio leaves the laptop until it hears that phrase.
 - High beep = speak now, low beep = stopped listening. Recording stops about 2 s after you finish talking (30 s maximum).
 - If a Gemini model is slow or busy, Jarvis asks a backup model in parallel and uses whichever answers first. The winner is tried first next time.
+
+### The Jarvis app
+
+`python -m jarvis.assistant` opens the Jarvis window: a space-themed orb plus an iOS-style conversation panel. Tap the orb or say "Hey Jarvis" to talk, type in the box, and allow or deny actions from the sheet that slides up.
+
+| Listening (reacts to your voice) | Thinking (actions as live chips) | Speaking | Approval |
+|---|---|---|---|
+| ![](docs/app-2-listening.png) | ![](docs/app-3-thinking.png) | ![](docs/app-4-speaking.png) | ![](docs/app-5-approval.png) |
+
+On a wide window the conversation moves to the right: ![](docs/app-7-wide.png)
+
+The window is a native window with `pip install -e ".[ui]"` (pywebview); otherwise it opens as an Edge/Chrome app window. Use `--no-ui` for console only.
+
+**Screen awareness:** every request includes the title of the window in front. When you say "this" / "what's on my screen" / "reply to this", Jarvis takes a screenshot (`look_at_screen`, needs `.[screen]`) and Gemini answers from it. Screenshots go to Google only when this tool runs, and they're never kept in the conversation history.
 
 ### What Jarvis can do
 

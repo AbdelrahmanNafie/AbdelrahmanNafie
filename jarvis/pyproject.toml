@@ -11,6 +11,8 @@ dependencies = [
 [project.optional-dependencies]
 mic = ["sounddevice>=0.5", "numpy>=1.26", "pywin32>=306; sys_platform == 'win32'"]
 wake = ["openwakeword>=0.6", "onnxruntime>=1.20"]
+screen = ["pillow>=11"]
+ui = ["pywebview>=5"]
 dev = ["pytest>=8"]
 
 [build-system]

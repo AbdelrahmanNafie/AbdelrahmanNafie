@@ -82,7 +82,8 @@ def to_wav(pcm: bytes, rate: int = RATE) -> bytes:
     return buf.getvalue()
 
 
-def record_until_silence(*, max_s: float = 30.0, no_speech_s: float = 8.0, on_start=None) -> bytes | None:
+def record_until_silence(*, max_s: float = 30.0, no_speech_s: float = 8.0, on_start=None,
+                         on_level=None) -> bytes | None:
     """Record one utterance. Returns WAV bytes, or None if nobody spoke."""
     import numpy as np
 
@@ -90,7 +91,7 @@ def record_until_silence(*, max_s: float = 30.0, no_speech_s: float = 8.0, on_st
     frames = []
     with sd.InputStream(samplerate=RATE, channels=1, dtype="int16", blocksize=CHUNK) as stream:
         # Measure the room's background noise for ~0.3 s so the threshold adapts.
-        calib = [stream.read(CHUNK)[0][:, 0] for _ in range(4)]
+        calib = [stream.read(CHUNK)[0][:, 0] for _ in range(2)]  # ~0.16 s
         detector = SilenceDetector(noise_floor=float(np.median([level(c) for c in calib])), max_s=max_s,
                                    no_speech_s=no_speech_s)
         if on_start:
@@ -100,7 +101,10 @@ def record_until_silence(*, max_s: float = 30.0, no_speech_s: float = 8.0, on_st
         while True:
             chunk = stream.read(CHUNK)[0][:, 0].copy()
             frames.append(chunk)
-            if detector.feed(level(chunk)):
+            loud = level(chunk)
+            if on_level:
+                on_level(min(1.0, loud / 4000))  # 0..1 for the orb
+            if detector.feed(loud):
                 break
     seconds = len(frames) * CHUNK_S
     if not detector.heard_speech:
