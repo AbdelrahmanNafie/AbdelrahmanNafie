@@ -7,6 +7,8 @@ import { autoSuggest } from "./engine/segment";
 import { buildRecord, download, PNG_KEYWORD, readPngText } from "./engine/exporter";
 import { measureFidelity, type FidelityResult } from "./engine/fidelity";
 import { closestFinishes, type Match } from "./engine/match";
+import { KIND_LABEL, identifyArea, type Identification } from "./engine/identify";
+import { IdentifyPanel } from "./ui/IdentifyPanel";
 import type { Renderer, PartDraw } from "./engine/renderer";
 import type { DrawItem } from "./engine/session";
 import { Stage, type ViewMode } from "./ui/Stage";
@@ -55,6 +57,8 @@ export default function App() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [tuneOpen, setTuneOpen] = useState(false);
   const [holdOriginal, setHoldOriginal] = useState(false);
+  const [identifyOn, setIdentifyOn] = useState(false);
+  const [ident, setIdent] = useState<Identification | null>(null);
   const studioRef = useRef<Studio3D | null>(null);
   // setup mode
   const [draft, setDraft] = useState<ProductSpec | null>(null);
@@ -170,6 +174,42 @@ export default function App() {
     },
     [session, items, matMap, st.tuning, st.mapping],
   );
+
+  // leave the identify tool whenever the product or mode changes
+  useEffect(() => {
+    setIdentifyOn(false);
+    setIdent(null);
+  }, [activeId, mode]);
+
+  // ------------------------------------------------------------ identify a material
+  const identify = (mask: Uint8Array, kind?: PartKind) => {
+    if (!session) return;
+    const r = identifyArea(session, mask, materials, kind);
+    if (!r) return notify("That area is too small — click inside the material or draw a larger outline.");
+    setIdent(r);
+  };
+
+  /** Turn the marked area into a separate part (e.g. a leather panel that was grouped with fabric). */
+  const splitIdentified = () => {
+    if (!session || !spec || !ident) return;
+    const n = spec.parts.filter((p) => p.kind === ident.kind).length + 1;
+    const { part, group } = newPart(spec, ident.kind, `${KIND_LABEL[ident.kind]} area ${n}`);
+    const idx = spec.parts.length;
+    const labels = session.prepared.labels.slice();
+    for (let i = 0; i < labels.length; i++) if (ident.mask[i]) labels[i] = idx;
+    const next: ProductSpec = { ...spec, parts: [...spec.parts, part], groups: group ? [...spec.groups, group] : spec.groups };
+    session.setSpec(next);
+    session.setLabels(labels, undefined, st.tuning);
+    const full = { ...session.toSpecWithBitmaps(), groups: next.groups };
+    session.setSpec(full);
+    setProducts((ps) => ps.map((x) => (x.id === spec.id ? full : x)));
+    if (spec.origin === "user") saveUserProduct(full).catch(() => undefined);
+    setVersion((v) => v + 1);
+    setActiveGroup(part.groupId);
+    setIdentifyOn(false);
+    setIdent(null);
+    notify(`“${part.name}” is now its own part — choose its finish.`);
+  };
 
   // ------------------------------------------------------------ configure actions
   const pick = (gid: string, mid: string | undefined) => {
@@ -527,6 +567,7 @@ export default function App() {
                 if (i >= 0) setActiveGroup(session.spec.parts[i].groupId);
               }}
               diff={fidelity?.heat}
+              identify={mode === "configure" && identifyOn ? { mask: ident?.mask ?? null, onArea: (m, pi) => identify(m, pi >= 0 ? session.spec.parts[pi].kind : undefined) } : null}
               rendererRef={rendererRef}
               toDraw={toDraw}
               editor={
@@ -551,7 +592,7 @@ export default function App() {
             />
           )}
           {loading && <div className="loading">Preparing product…</div>}
-          {hoverPart >= 0 && session && mode === "configure" && (
+          {hoverPart >= 0 && session && mode === "configure" && !identifyOn && (
             <div className="hover-tag">{session.spec.groups.find((g) => g.id === session.spec.parts[hoverPart]?.groupId)?.name}</div>
           )}
           {fidelity && view === "diff" && (
@@ -622,6 +663,26 @@ export default function App() {
 
         {mode === "configure" && spec && (
           <aside className="right">
+            {!spec.model && session && !identifyOn && (
+              <button className={`btn wide identify-btn ${identifyOn ? "on" : ""}`} onClick={() => (setIdentifyOn((o) => !o), setIdent(null))} data-testid="identify">
+                🔍 Identify a material
+              </button>
+            )}
+            {identifyOn && session ? (
+              <IdentifyPanel
+                ident={ident}
+                groups={spec.groups}
+                selection={st.selection}
+                materials={matMap}
+                onKind={(k) => ident && identify(ident.mask, k)}
+                onApply={(gid, mid) => pick(gid, mid)}
+                onOpenGroup={(gid) => (setActiveGroup(gid), setIdentifyOn(false), setIdent(null))}
+                onSplit={splitIdentified}
+                onClear={() => setIdent(null)}
+                onClose={() => (setIdentifyOn(false), setIdent(null))}
+              />
+            ) : (
+            <>
             <div className="step-head">
               <span className="num">1</span> Choose a part
             </div>
@@ -674,6 +735,8 @@ export default function App() {
                   ))}
                 </div>
               </div>
+            )}
+            </>
             )}
           </aside>
         )}

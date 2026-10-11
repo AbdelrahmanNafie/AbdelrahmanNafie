@@ -287,3 +287,21 @@ code { font-size: 11px; background: var(--bg); padding: 1px 5px; border-radius: 
 .render-progress { position: absolute; inset: auto 16px 16px 16px; background: rgba(28,27,25,.85); color: #fff; padding: 10px 12px; border-radius: 10px; font-size: 13px; display: grid; gap: 6px; }
 .render-progress .bar { height: 6px; background: rgba(255,255,255,.2); border-radius: 3px; overflow: hidden; }
 .render-progress .bar i { display: block; height: 100%; background: var(--accent); transition: width .2s; }
+
+/* identify a material */
+.identify-btn { justify-content: center; font-weight: 600; border-style: dashed; }
+.identify-btn.on { border-style: solid; border-color: var(--accent); background: var(--accent-soft); }
+.identify { display: flex; flex-direction: column; gap: 12px; }
+.step-head.flush { margin-top: 0; }
+.identify-help { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: #fbfaf7; }
+.identify-help p { margin: 0 0 6px; }
+.ident-card { display: flex; gap: 12px; align-items: center; }
+.ident-color { width: 48px; height: 48px; border-radius: 12px; flex: none; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12); }
+.ident-kind { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.ident-part { display: flex; flex-direction: column; gap: 2px; border-top: 1px solid var(--line); padding-top: 10px; }
+.ident-part .note { margin-top: 6px; }
+.ident-matches { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ident-matches .swatch:disabled { opacity: 1; cursor: default; transform: none; }
+.match-tag { margin-top: 2px; font-weight: 600; }
+.match-tag.good { color: #2f7d4f !important; }
+.ident-actions { display: grid; gap: 8px; margin-top: 4px; }

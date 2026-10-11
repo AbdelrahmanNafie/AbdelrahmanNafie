@@ -63,6 +63,17 @@ Deploy to Cloudflare Pages: build command `npm run build`, output directory `dis
    "Copy Excel row" (tab-separated: SKU, product, every code, file name); the file name itself carries the codes.
 8. **Restore**: drop an exported PNG back onto the app → it switches to that product and re-applies its exact codes.
    The URL is also shareable (`#/product-id?group=material-id…`).
+9. **Identify a material** (button above the part list): **click** anything on the photo to light up exactly that part,
+   or **press and drag** to draw around a specific spot. The panel shows the material type (correctable with one click),
+   the measured colour, which part the area belongs to (with a warning when it straddles two parts), and the closest
+   Mobica codes with a plain-language match level (Very close / Close / Similar). Click a code to apply it, or
+   **Make this area its own part** to split it off (e.g. a leather panel that was grouped with the fabric).
+
+The three demo photos supplied later at 1672 px (tub chair, club chair, executive desk) replace the upscaled
+480 px originals; they were registered to the old frames (ECC alignment) and the part masks re-snapped to them.
+
+TRELLIS.2 (single photo → 3D model) is being evaluated as a way to feed the 3D Studio without manufacturer models;
+see [`pilot/trellis2/README.md`](pilot/trellis2/README.md) for the ready-to-run pilot.
 
 ### Setting up a new product (≈1–2 minutes)
 

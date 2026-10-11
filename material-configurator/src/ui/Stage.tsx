@@ -35,6 +35,8 @@ interface Props {
   diff?: ImageData | null;
   editor?: EditorProps | null;
   rendererRef?: React.MutableRefObject<Renderer | null>;
+  /** "What is this material?" mode: click an area or draw around it */
+  identify?: { mask: Uint8Array | null; onArea: (mask: Uint8Array, partIndex: number) => void } | null;
   toDraw?: React.MutableRefObject<((items: DrawItem[]) => PartDraw[]) | null>;
 }
 
@@ -57,6 +59,7 @@ export function Stage(p: Props) {
   const [cursor, setCursor] = useState<[number, number] | null>(null);
   const stroke = useRef<{ mask: Uint8Array; value: 0 | 1 } | null>(null);
   const dragHandle = useRef<number>(-1);
+  const lasso = useRef<[number, number][] | null>(null);
   const [, force] = useState(0);
 
   // ------------------------------------------------------------ layout
@@ -183,6 +186,26 @@ export function Stage(p: Props) {
     const groupOf = session.spec.parts.map((pt) => pt.groupId);
     const cols = PART_COLORS.map(hexRgb);
     const st = stroke.current;
+    const im = p.identify?.mask;
+    if (im) {
+      for (let i = 0; i < im.length; i++) {
+        if (!im[i]) continue;
+        const x = i % w;
+        const edge = x === 0 || x === w - 1 || !im[i - 1] || !im[i + 1] || !im[i - w] || !im[i + w];
+        const k = i * 4;
+        if (edge) {
+          id.data[k] = id.data[k + 1] = id.data[k + 2] = 255;
+          id.data[k + 3] = 255;
+        } else {
+          id.data[k] = 255;
+          id.data[k + 1] = 196;
+          id.data[k + 2] = 0;
+          id.data[k + 3] = 95;
+        }
+      }
+      ctx.putImageData(id, 0, 0);
+      return;
+    }
     for (let i = 0; i < labels.length; i++) {
       let l = labels[i];
       if (st && st.mask[i]) l = st.value ? ed!.activePart : -1;
@@ -210,7 +233,7 @@ export function Stage(p: Props) {
       id.data[i * 4 + 3] = a;
     }
     ctx.putImageData(id, 0, 0);
-  }, [session, p.version, p.hoverPart, p.highlightGroup, p.editor, p.view, p.diff, cursor]);
+  }, [session, p.version, p.hoverPart, p.highlightGroup, p.editor, p.view, p.diff, cursor, p.identify?.mask]);
 
   // ------------------------------------------------------------ pointer → image coords
   const toImg = (e: React.PointerEvent | React.MouseEvent): [number, number] => {
@@ -235,6 +258,11 @@ export function Stage(p: Props) {
   const onDown = (e: React.PointerEvent) => {
     const [x, y] = toImg(e);
     const ed = p.editor;
+    if (!ed && p.identify) {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      lasso.current = [[x, y]];
+      return;
+    }
     if (!ed) {
       p.onPickPart(session.partAt(x, y));
       return;
@@ -285,6 +313,14 @@ export function Stage(p: Props) {
     const [x, y] = toImg(e);
     setCursor([x, y]);
     const ed = p.editor;
+    if (!ed && p.identify) {
+      const L = lasso.current;
+      if (L) {
+        const [lx, ly] = L[L.length - 1];
+        if (Math.hypot(lx - x, ly - y) > (3 * session.w) / cssW) L.push([x, y]);
+      }
+      return;
+    }
     if (!ed) {
       const l = session.partAt(x, y);
       if (l !== p.hoverPart) p.onHoverPart(l);
@@ -303,6 +339,31 @@ export function Stage(p: Props) {
   };
 
   const onUp = () => {
+    const L = lasso.current;
+    if (L && p.identify) {
+      lasso.current = null;
+      let len = 0;
+      for (let i = 1; i < L.length; i++) len += Math.hypot(L[i][0] - L[i - 1][0], L[i][1] - L[i - 1][1]);
+      let m: Uint8Array;
+      let part = -1;
+      if (L.length >= 3 && (len * cssW) / session.w > 40) {
+        // drawn outline: everything inside it, minus the white backdrop and floor shadow
+        m = rasterizePolygon(L, session.w, session.h);
+        const fl = session.li.bg.floor;
+        for (let i = 0; i < m.length; i++) if (fl[i]) m[i] = 0;
+      } else if ((part = session.partAt(L[0][0], L[0][1])) >= 0) {
+        // single click on a part: the whole part, exactly as it is outlined
+        const labels = session.prepared.labels;
+        m = new Uint8Array(labels.length);
+        for (let i = 0; i < labels.length; i++) m[i] = labels[i] === part ? 1 : 0;
+      } else {
+        // single click outside the parts: grow the area of similar colour and texture around the point
+        m = smartSelect(session.li, L[0][0], L[0][1], { tolerance: 14, smoothing: 3, edgeStop: 6, ignoreBackground: true });
+      }
+      p.identify.onArea(m, part);
+      force((n) => n + 1);
+      return;
+    }
     if (stroke.current) {
       const s = stroke.current;
       stroke.current = null;
@@ -323,9 +384,15 @@ export function Stage(p: Props) {
 
   const ed = p.editor;
   const scale = cssW / session.w;
-  const cursorStyle = !ed ? (p.hoverPart >= 0 ? "pointer" : "default") : ed.tool === "pick" || ed.tool === "quad" ? "default" : "crosshair";
+  const cursorStyle = p.identify && !ed ? "crosshair" : !ed ? (p.hoverPart >= 0 ? "pointer" : "default") : ed.tool === "pick" || ed.tool === "quad" ? "default" : "crosshair";
 
   const svg = useMemo(() => {
+    if (!ed && p.identify && lasso.current && lasso.current.length > 1)
+      return (
+        <svg className="stage-svg" viewBox={`0 0 ${session.w} ${session.h}`} style={{ width: cssW, height: cssH }}>
+          <polyline points={lasso.current.map((q) => q.join(",")).join(" ")} fill="rgba(255,196,0,0.15)" stroke="#fff" strokeWidth={2 / scale} strokeDasharray={`${6 / scale} ${4 / scale}`} />
+        </svg>
+      );
     if (!ed) return null;
     return (
       <svg className="stage-svg" viewBox={`0 0 ${session.w} ${session.h}`} style={{ width: cssW, height: cssH }}>
@@ -356,7 +423,8 @@ export function Stage(p: Props) {
         )}
       </svg>
     );
-  }, [ed, polyPts, cursor, session, cssW, cssH, scale]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ed, polyPts, cursor, session, cssW, cssH, scale, p.identify]);
 
   const imgStyle = { width: cssW, height: cssH };
   const frameStyle = { width: frameW, height: frameH };
@@ -385,7 +453,7 @@ export function Stage(p: Props) {
               onPointerUp={onUp}
               onPointerLeave={() => {
                 setCursor(null);
-                if (!p.editor) p.onHoverPart(-1);
+                if (!p.editor && !p.identify) p.onHoverPart(-1);
               }}
               onDoubleClick={() => ed?.tool === "poly" && polyPts.length >= 3 && closePoly(polyPts)}
             >

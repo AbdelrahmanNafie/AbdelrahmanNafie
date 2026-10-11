@@ -57,6 +57,29 @@ for (const id of ["executive-desk-x", "bench-workstation", "lounge-chair-tub", "
   console.log(`accuracy ${id}:`, rows.join(" | "));
 }
 
+// 2b. identify a material: click a part, then draw around an area and make it its own part
+await page.click('[data-product="lounge-chair-leather"]');
+await page.waitForTimeout(2500);
+const groupsBefore = (await page.$$("[data-group]")).length; // the part list is hidden while identifying
+await page.click("[data-testid=identify]");
+const lr = await page.$eval(".layers", (el) => { const b = el.getBoundingClientRect(); return [b.left, b.top, b.width / 1440, b.height / 1440]; });
+const pt = (x, y) => [lr[0] + x * lr[2], lr[1] + y * lr[3]];
+await page.mouse.click(...pt(470, 900));
+await page.waitForSelector("[data-testid=ident-result]");
+const identText = await page.$eval("[data-testid=identify-panel]", (e) => e.innerText);
+if (!/Outer shell/.test(identText) || !/Leather/.test(identText)) fail("identify did not name the leather shell");
+else console.log("identify click ok:", identText.match(/CLOSEST MOBICA FINISHES\s+(\S+)/i)?.[1]);
+await page.click("text=Mark another area");
+await page.mouse.move(...pt(560, 560));
+await page.mouse.down();
+for (const [x, y] of [[840, 560], [840, 760], [560, 760], [560, 565]]) await page.mouse.move(...pt(x, y), { steps: 6 });
+await page.mouse.up();
+await page.waitForSelector("[data-testid=ident-split]");
+await page.click("[data-testid=ident-split]");
+await page.waitForTimeout(1500);
+if ((await page.$$("[data-group]")).length !== groupsBefore + 1) fail("identify split did not add a part");
+else console.log("identify split ok");
+
 // 3. upload a photo: parts are detected automatically
 await page.setInputFiles("input[type=file]", path.join(here, "..", "public", "products", "lounge-chair-leather.jpg"));
 await page.waitForSelector(".parts li", { timeout: 30000 });
