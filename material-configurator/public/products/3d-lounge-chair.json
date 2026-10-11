@@ -1,0 +1,112 @@
+{
+ "id": "3d-lounge-chair",
+ "name": "Lounge Chair (3D)",
+ "category": "3D",
+ "sku": "DEMO-3D-CH",
+ "widthCm": 70,
+ "image": "products/3d-lounge-chair.jpg",
+ "model": "models/SheenChair.glb",
+ "origin": "demo",
+ "credit": "3D model: \u201cSheen Chair\u201d \u00a9 2020 Wayfair, LLC \u2014 CC0 1.0 (Khronos glTF Sample Assets).",
+ "groups": [
+  {
+   "id": "upholstery",
+   "name": "Upholstery",
+   "allowed": [
+    "fabric",
+    "leather-natural",
+    "leather-artificial"
+   ]
+  },
+  {
+   "id": "wood",
+   "name": "Wooden frame",
+   "allowed": [
+    "wood",
+    "metal",
+    "concept"
+   ]
+  },
+  {
+   "id": "metal",
+   "name": "Metal fittings",
+   "allowed": [
+    "metal",
+    "concept"
+   ]
+  }
+ ],
+ "parts": [
+  {
+   "id": "fabric",
+   "name": "Upholstery",
+   "groupId": "upholstery",
+   "kind": "fabric",
+   "regions": [],
+   "mapping": {
+    "mode": "planar",
+    "angle": 0,
+    "scale": 1
+   },
+   "meshes": [
+    "SheenChair_fabric"
+   ]
+  },
+  {
+   "id": "wood",
+   "name": "Wooden frame",
+   "groupId": "wood",
+   "kind": "wood",
+   "regions": [],
+   "mapping": {
+    "mode": "planar",
+    "angle": 0,
+    "scale": 1
+   },
+   "meshes": [
+    "SheenChair_wood"
+   ]
+  },
+  {
+   "id": "metal",
+   "name": "Metal fittings",
+   "groupId": "metal",
+   "kind": "metal",
+   "regions": [],
+   "mapping": {
+    "mode": "planar",
+    "angle": 0,
+    "scale": 1
+   },
+   "meshes": [
+    "SheenChair_metal"
+   ]
+  }
+ ],
+ "presets": [
+  {
+   "name": "Nordic",
+   "selection": {
+    "upholstery": "fabric-tx769-0089",
+    "wood": "wood-6801",
+    "metal": "metal-9006"
+   }
+  },
+  {
+   "name": "Club leather",
+   "selection": {
+    "upholstery": "leather-natural-503",
+    "wood": "wood-461",
+    "metal": "brushed-nickel"
+   }
+  },
+  {
+   "name": "Petrol & walnut",
+   "selection": {
+    "upholstery": "fabric-koya-51",
+    "wood": "wood-253",
+    "metal": "metal-9005"
+   }
+  }
+ ]
+}

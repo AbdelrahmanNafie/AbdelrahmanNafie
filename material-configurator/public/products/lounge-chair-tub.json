@@ -1,0 +1,122 @@
+{
+ "id": "lounge-chair-tub",
+ "name": "Tub Lounge Chair",
+ "category": "Lounge seating",
+ "sku": "DEMO-LC-01",
+ "widthCm": 78,
+ "image": "products/lounge-chair-tub.jpg",
+ "notes": "Original shell is a high-contrast houndstooth that is not in the catalog; stronger pattern removal is used.",
+ "groups": [
+  {
+   "id": "shell",
+   "name": "Shell upholstery",
+   "allowed": [
+    "fabric",
+    "leather-natural",
+    "leather-artificial"
+   ]
+  },
+  {
+   "id": "seat",
+   "name": "Seat cushion",
+   "allowed": [
+    "fabric",
+    "leather-natural",
+    "leather-artificial"
+   ]
+  },
+  {
+   "id": "frame",
+   "name": "Tubular frame",
+   "allowed": [
+    "metal",
+    "concept"
+   ]
+  }
+ ],
+ "parts": [
+  {
+   "id": "shell",
+   "name": "Shell",
+   "groupId": "shell",
+   "kind": "fabric",
+   "regions": [
+    {
+     "type": "bitmap",
+     "src": "products/lounge-chair-tub.mask-shell.png"
+    }
+   ],
+   "mapping": {
+    "mode": "planar",
+    "angle": 0,
+    "scale": 1
+   },
+   "tuning": {
+    "smoothing": 1.0,
+    "detail": 0.0,
+    "highlights": 0.4
+   }
+  },
+  {
+   "id": "seat",
+   "name": "Seat cushion",
+   "groupId": "seat",
+   "kind": "fabric",
+   "regions": [
+    {
+     "type": "bitmap",
+     "src": "products/lounge-chair-tub.mask-seat.png"
+    }
+   ],
+   "mapping": {
+    "mode": "planar",
+    "angle": 0,
+    "scale": 1
+   }
+  },
+  {
+   "id": "frame",
+   "name": "Frame",
+   "groupId": "frame",
+   "kind": "metal",
+   "regions": [
+    {
+     "type": "bitmap",
+     "src": "products/lounge-chair-tub.mask-frame.png"
+    }
+   ],
+   "mapping": {
+    "mode": "planar",
+    "angle": 90,
+    "scale": 1
+   }
+  }
+ ],
+ "presets": [
+  {
+   "name": "Tonal blue",
+   "selection": {
+    "shell": "fabric-koya-51",
+    "seat": "fabric-koya-42",
+    "frame": "metal-9005"
+   }
+  },
+  {
+   "name": "Camel & cream",
+   "selection": {
+    "shell": "leather-artificial-2001",
+    "seat": "leather-artificial-k401",
+    "frame": "metal-9006"
+   }
+  },
+  {
+   "name": "Mustard pop",
+   "selection": {
+    "shell": "fabric-tx769-0016",
+    "seat": "fabric-601",
+    "frame": "metal-860"
+   }
+  }
+ ],
+ "origin": "demo"
+}

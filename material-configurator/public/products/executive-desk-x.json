@@ -1,0 +1,197 @@
+{
+ "id": "executive-desk-x",
+ "name": "Executive L-Desk, X-Frame",
+ "category": "Desks",
+ "sku": "DEMO-DSK-180",
+ "widthCm": 180,
+ "image": "products/executive-desk-x.jpg",
+ "notes": "Planar surfaces use perspective mapping so wood grain follows the desktop plane.",
+ "groups": [
+  {
+   "id": "desktop",
+   "name": "Desktop",
+   "allowed": [
+    "wood",
+    "concept"
+   ]
+  },
+  {
+   "id": "carcass",
+   "name": "Modesty panel & pedestal",
+   "allowed": [
+    "wood"
+   ]
+  },
+  {
+   "id": "frame",
+   "name": "Steel frame",
+   "allowed": [
+    "metal",
+    "concept"
+   ]
+  }
+ ],
+ "parts": [
+  {
+   "id": "pedestal",
+   "name": "Pedestal",
+   "groupId": "carcass",
+   "kind": "wood",
+   "regions": [
+    {
+     "type": "bitmap",
+     "src": "products/executive-desk-x.mask-pedestal.png"
+    }
+   ],
+   "mapping": {
+    "mode": "perspective",
+    "quad": [
+     [
+      1033.0,
+      187.0
+     ],
+     [
+      1258.0,
+      157.0
+     ],
+     [
+      1255.0,
+      496.0
+     ],
+     [
+      1075.0,
+      532.0
+     ]
+    ],
+    "sizeCm": [
+     60,
+     62
+    ],
+    "angle": 90,
+    "scale": 1
+   }
+  },
+  {
+   "id": "panel",
+   "name": "Modesty panel",
+   "groupId": "carcass",
+   "kind": "wood",
+   "regions": [
+    {
+     "type": "bitmap",
+     "src": "products/executive-desk-x.mask-panel.png"
+    }
+   ],
+   "mapping": {
+    "mode": "perspective",
+    "quad": [
+     [
+      457.0,
+      262.0
+     ],
+     [
+      1030.0,
+      211.0
+     ],
+     [
+      1030.0,
+      421.0
+     ],
+     [
+      460.0,
+      532.0
+     ]
+    ],
+    "sizeCm": [
+     150,
+     55
+    ],
+    "angle": 0,
+    "scale": 1
+   }
+  },
+  {
+   "id": "top",
+   "name": "Desktop",
+   "groupId": "desktop",
+   "kind": "wood",
+   "regions": [
+    {
+     "type": "bitmap",
+     "src": "products/executive-desk-x.mask-top.png"
+    }
+   ],
+   "mapping": {
+    "mode": "perspective",
+    "quad": [
+     [
+      187.0,
+      178.0
+     ],
+     [
+      955.0,
+      73.0
+     ],
+     [
+      1258.0,
+      151.0
+     ],
+     [
+      442.0,
+      265.0
+     ]
+    ],
+    "sizeCm": [
+     180,
+     80
+    ],
+    "angle": 0,
+    "scale": 1
+   }
+  },
+  {
+   "id": "frame",
+   "name": "X-frame & bracket",
+   "groupId": "frame",
+   "kind": "metal",
+   "regions": [
+    {
+     "type": "bitmap",
+     "src": "products/executive-desk-x.mask-frame.png"
+    }
+   ],
+   "mapping": {
+    "mode": "planar",
+    "angle": 90,
+    "scale": 1
+   }
+  }
+ ],
+ "presets": [
+  {
+   "name": "Nordic oak",
+   "selection": {
+    "desktop": "wood-6801",
+    "carcass": "wood-6801",
+    "frame": "metal-9216"
+   }
+  },
+  {
+   "name": "Graphite walnut",
+   "selection": {
+    "desktop": "wood-253",
+    "carcass": "wood-8231",
+    "frame": "metal-9005"
+   }
+  },
+  {
+   "name": "Marble statement",
+   "selection": {
+    "desktop": "marble-nero",
+    "carcass": "wood-8231",
+    "frame": "brushed-nickel"
+   }
+  }
+ ],
+ "origin": "demo"
+}

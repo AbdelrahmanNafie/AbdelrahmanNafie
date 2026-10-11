@@ -1,0 +1,187 @@
+{
+ "id": "bench-workstation",
+ "name": "Bench Workstation, 4 Seats",
+ "category": "Workstations",
+ "sku": "DEMO-WS-4P",
+ "widthCm": 240,
+ "image": "products/bench-workstation.jpg",
+ "groups": [
+  {
+   "id": "worktops",
+   "name": "Worktops",
+   "allowed": [
+    "wood",
+    "concept"
+   ]
+  },
+  {
+   "id": "screens",
+   "name": "Screen fabric",
+   "allowed": [
+    "fabric"
+   ]
+  },
+  {
+   "id": "legs",
+   "name": "Legs",
+   "allowed": [
+    "wood",
+    "metal"
+   ]
+  },
+  {
+   "id": "metal",
+   "name": "Screen frame & cable spine",
+   "allowed": [
+    "metal",
+    "concept"
+   ]
+  }
+ ],
+ "parts": [
+  {
+   "id": "tops",
+   "name": "Worktops",
+   "groupId": "worktops",
+   "kind": "wood",
+   "regions": [
+    {
+     "type": "bitmap",
+     "src": "products/bench-workstation.mask-tops.png"
+    }
+   ],
+   "mapping": {
+    "mode": "perspective",
+    "quad": [
+     [
+      172.0,
+      763.0
+     ],
+     [
+      1051.0,
+      709.0
+     ],
+     [
+      1264.0,
+      751.0
+     ],
+     [
+      460.0,
+      871.0
+     ]
+    ],
+    "sizeCm": [
+     240,
+     140
+    ],
+    "angle": 0,
+    "scale": 1
+   },
+   "tuning": {
+    "smoothing": 0.3,
+    "detail": 0.2
+   }
+  },
+  {
+   "id": "legs",
+   "name": "Tapered legs",
+   "groupId": "legs",
+   "kind": "wood",
+   "regions": [
+    {
+     "type": "bitmap",
+     "src": "products/bench-workstation.mask-legs.png"
+    }
+   ],
+   "mapping": {
+    "mode": "planar",
+    "angle": 90,
+    "scale": 1
+   }
+  },
+  {
+   "id": "spine",
+   "name": "Cable spine",
+   "groupId": "metal",
+   "kind": "metal",
+   "regions": [
+    {
+     "type": "bitmap",
+     "src": "products/bench-workstation.mask-spine.png"
+    }
+   ],
+   "mapping": {
+    "mode": "planar",
+    "angle": 0,
+    "scale": 1
+   }
+  },
+  {
+   "id": "screen",
+   "name": "Screen panels",
+   "groupId": "screens",
+   "kind": "fabric",
+   "regions": [
+    {
+     "type": "bitmap",
+     "src": "products/bench-workstation.mask-screen.png"
+    }
+   ],
+   "mapping": {
+    "mode": "planar",
+    "angle": 0,
+    "scale": 1
+   },
+   "tuning": {
+    "smoothing": 0.35
+   }
+  },
+  {
+   "id": "screenframe",
+   "name": "Screen frame",
+   "groupId": "metal",
+   "kind": "metal",
+   "regions": [
+    {
+     "type": "bitmap",
+     "src": "products/bench-workstation.mask-screenframe.png"
+    }
+   ],
+   "mapping": {
+    "mode": "planar",
+    "angle": 0,
+    "scale": 1
+   }
+  }
+ ],
+ "presets": [
+  {
+   "name": "Light & airy",
+   "selection": {
+    "worktops": "wood-8846",
+    "screens": "fabric-koya-42",
+    "legs": "wood-6801",
+    "metal": "metal-9216"
+   }
+  },
+  {
+   "name": "Corporate dark",
+   "selection": {
+    "worktops": "wood-8231",
+    "screens": "fabric-602",
+    "legs": "metal-9005",
+    "metal": "metal-9005"
+   }
+  },
+  {
+   "name": "Brand colour",
+   "selection": {
+    "worktops": "wood-101",
+    "screens": "fabric-koya-28",
+    "legs": "wood-253",
+    "metal": "metal-860"
+   }
+  }
+ ],
+ "origin": "demo"
+}
