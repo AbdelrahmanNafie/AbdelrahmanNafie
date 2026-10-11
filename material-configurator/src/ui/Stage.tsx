@@ -36,7 +36,12 @@ interface Props {
   editor?: EditorProps | null;
   rendererRef?: React.MutableRefObject<Renderer | null>;
   /** "What is this material?" mode: click an area or draw around it */
-  identify?: { mask: Uint8Array | null; onArea: (mask: Uint8Array, partIndex: number) => void } | null;
+  identify?: {
+    mask: Uint8Array | null;
+    /** "remove" tints the pointer red; "locked" ignores the photo until unlocked */
+    mode: "new" | "add" | "remove" | "locked";
+    onGesture: (g: { type: "click"; x: number; y: number } | { type: "draw"; points: [number, number][] }) => void;
+  } | null;
   toDraw?: React.MutableRefObject<((items: DrawItem[]) => PartDraw[]) | null>;
 }
 
@@ -194,7 +199,10 @@ export function Stage(p: Props) {
         const edge = x === 0 || x === w - 1 || !im[i - 1] || !im[i + 1] || !im[i - w] || !im[i + w];
         const k = i * 4;
         if (edge) {
-          id.data[k] = id.data[k + 1] = id.data[k + 2] = 255;
+          const locked = p.identify!.mode === "locked";
+          id.data[k] = locked ? 40 : 255;
+          id.data[k + 1] = locked ? 200 : 255;
+          id.data[k + 2] = locked ? 110 : 255;
           id.data[k + 3] = 255;
         } else {
           id.data[k] = 255;
@@ -233,7 +241,7 @@ export function Stage(p: Props) {
       id.data[i * 4 + 3] = a;
     }
     ctx.putImageData(id, 0, 0);
-  }, [session, p.version, p.hoverPart, p.highlightGroup, p.editor, p.view, p.diff, cursor, p.identify?.mask]);
+  }, [session, p.version, p.hoverPart, p.highlightGroup, p.editor, p.view, p.diff, cursor, p.identify?.mask, p.identify?.mode]);
 
   // ------------------------------------------------------------ pointer → image coords
   const toImg = (e: React.PointerEvent | React.MouseEvent): [number, number] => {
@@ -259,6 +267,7 @@ export function Stage(p: Props) {
     const [x, y] = toImg(e);
     const ed = p.editor;
     if (!ed && p.identify) {
+      if (p.identify.mode === "locked") return;
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       lasso.current = [[x, y]];
       return;
@@ -344,23 +353,8 @@ export function Stage(p: Props) {
       lasso.current = null;
       let len = 0;
       for (let i = 1; i < L.length; i++) len += Math.hypot(L[i][0] - L[i - 1][0], L[i][1] - L[i - 1][1]);
-      let m: Uint8Array;
-      let part = -1;
-      if (L.length >= 3 && (len * cssW) / session.w > 40) {
-        // drawn outline: everything inside it, minus the white backdrop and floor shadow
-        m = rasterizePolygon(L, session.w, session.h);
-        const fl = session.li.bg.floor;
-        for (let i = 0; i < m.length; i++) if (fl[i]) m[i] = 0;
-      } else if ((part = session.partAt(L[0][0], L[0][1])) >= 0) {
-        // single click on a part: the whole part, exactly as it is outlined
-        const labels = session.prepared.labels;
-        m = new Uint8Array(labels.length);
-        for (let i = 0; i < labels.length; i++) m[i] = labels[i] === part ? 1 : 0;
-      } else {
-        // single click outside the parts: grow the area of similar colour and texture around the point
-        m = smartSelect(session.li, L[0][0], L[0][1], { tolerance: 14, smoothing: 3, edgeStop: 6, ignoreBackground: true });
-      }
-      p.identify.onArea(m, part);
+      if (L.length >= 3 && (len * cssW) / session.w > 40) p.identify.onGesture({ type: "draw", points: L });
+      else p.identify.onGesture({ type: "click", x: L[0][0], y: L[0][1] });
       force((n) => n + 1);
       return;
     }
@@ -384,13 +378,13 @@ export function Stage(p: Props) {
 
   const ed = p.editor;
   const scale = cssW / session.w;
-  const cursorStyle = p.identify && !ed ? "crosshair" : !ed ? (p.hoverPart >= 0 ? "pointer" : "default") : ed.tool === "pick" || ed.tool === "quad" ? "default" : "crosshair";
+  const cursorStyle = p.identify && !ed ? (p.identify.mode === "locked" ? "default" : p.identify.mode === "remove" ? "not-allowed" : p.identify.mode === "add" ? "copy" : "crosshair") : !ed ? (p.hoverPart >= 0 ? "pointer" : "default") : ed.tool === "pick" || ed.tool === "quad" ? "default" : "crosshair";
 
   const svg = useMemo(() => {
     if (!ed && p.identify && lasso.current && lasso.current.length > 1)
       return (
         <svg className="stage-svg" viewBox={`0 0 ${session.w} ${session.h}`} style={{ width: cssW, height: cssH }}>
-          <polyline points={lasso.current.map((q) => q.join(",")).join(" ")} fill="rgba(255,196,0,0.15)" stroke="#fff" strokeWidth={2 / scale} strokeDasharray={`${6 / scale} ${4 / scale}`} />
+          <polyline points={lasso.current.map((q) => q.join(",")).join(" ")} fill={p.identify.mode === "remove" ? "rgba(220,60,60,0.15)" : "rgba(255,196,0,0.15)"} stroke={p.identify.mode === "remove" ? "#ff6b6b" : "#fff"} strokeWidth={2 / scale} strokeDasharray={`${6 / scale} ${4 / scale}`} />
         </svg>
       );
     if (!ed) return null;

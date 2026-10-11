@@ -8,7 +8,10 @@ import { buildRecord, download, PNG_KEYWORD, readPngText } from "./engine/export
 import { measureFidelity, type FidelityResult } from "./engine/fidelity";
 import { closestFinishes, type Match } from "./engine/match";
 import { KIND_LABEL, identifyArea, type Identification } from "./engine/identify";
-import { IdentifyPanel } from "./ui/IdentifyPanel";
+import { IdentifyPanel, type SelectMode } from "./ui/IdentifyPanel";
+import { morph, snapOutline, snapToPart } from "./engine/snap";
+import { smartSelect } from "./engine/segment";
+import { rasterizePolygon } from "./engine/imageOps";
 import type { Renderer, PartDraw } from "./engine/renderer";
 import type { DrawItem } from "./engine/session";
 import { Stage, type ViewMode } from "./ui/Stage";
@@ -59,6 +62,9 @@ export default function App() {
   const [holdOriginal, setHoldOriginal] = useState(false);
   const [identifyOn, setIdentifyOn] = useState(false);
   const [ident, setIdent] = useState<Identification | null>(null);
+  const [selLocked, setSelLocked] = useState(false);
+  const [selMode, setSelMode] = useState<SelectMode>("add");
+  const selHistory = useRef<(Identification | null)[]>([]);
   const studioRef = useRef<Studio3D | null>(null);
   // setup mode
   const [draft, setDraft] = useState<ProductSpec | null>(null);
@@ -178,15 +184,78 @@ export default function App() {
   // leave the identify tool whenever the product or mode changes
   useEffect(() => {
     setIdentifyOn(false);
-    setIdent(null);
+    clearSelection();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId, mode]);
 
   // ------------------------------------------------------------ identify a material
-  const identify = (mask: Uint8Array, kind?: PartKind) => {
+  function clearSelection() {
+    setIdent(null);
+    setSelLocked(false);
+    setSelMode("add");
+    selHistory.current = [];
+  }
+
+  /** Analyse a selection and make it current (remembering the previous one for Undo). */
+  const identify = (mask: Uint8Array, kind?: PartKind, record = true) => {
     if (!session) return;
-    const r = identifyArea(session, mask, materials, kind);
-    if (!r) return notify("That area is too small — click inside the material or draw a larger outline.");
+    let n = 0;
+    for (let i = 0; i < mask.length; i++) n += mask[i];
+    if (n < 30) return notify(ident ? "Nothing changed — that would leave the selection empty or the same." : "That area is too small — click inside the material or draw a larger loop.");
+    // a selection that is (almost) one existing part becomes exactly that part, with its declared type
+    const snapped = snapToPart(mask, session.prepared.labels);
+    const k = kind ?? (snapped.part >= 0 ? session.spec.parts[snapped.part].kind : undefined);
+    const r = identifyArea(session, snapped.mask, materials, k);
+    if (!r) return;
+    if (record) selHistory.current.push(ident);
     setIdent(r);
+  };
+
+  /** A click or a loop on the photo: start, add to, or remove from the current selection. */
+  const onSelectGesture = (g: { type: "click"; x: number; y: number } | { type: "draw"; points: [number, number][] }) => {
+    if (!session || selLocked) return;
+    const { w, h, li } = session;
+    let m: Uint8Array;
+    if (g.type === "draw") {
+      const poly = rasterizePolygon(g.points, w, h);
+      for (let i = 0; i < poly.length; i++) if (li.bg.floor[i]) poly[i] = 0;
+      // removing = cut out exactly what was drawn; selecting or adding = snap to the material
+      m = ident && selMode === "remove" ? poly : snapOutline(li, poly);
+    } else {
+      const part = session.partAt(g.x, g.y);
+      if (!ident && part >= 0) {
+        // first click on a part: exactly that part
+        const labels = session.prepared.labels;
+        m = new Uint8Array(labels.length);
+        for (let i = 0; i < labels.length; i++) m[i] = labels[i] === part ? 1 : 0;
+      } else {
+        // fixing clicks: the patch of the same material around the click
+        m = smartSelect(li, g.x, g.y, { tolerance: 14, smoothing: 3, edgeStop: 6, ignoreBackground: true });
+      }
+    }
+    if (!ident) return identify(m);
+    const cur = ident.mask;
+    const next = new Uint8Array(cur.length);
+    let changed = 0;
+    for (let i = 0; i < cur.length; i++) {
+      next[i] = selMode === "add" ? cur[i] | m[i] : cur[i] & (m[i] ^ 1);
+      if (next[i] !== cur[i]) changed++;
+    }
+    if (!changed) return notify(selMode === "add" ? "That area is already selected." : "That area is not in the selection.");
+    identify(next, ident.kind);
+  };
+
+  const growSelection = (dir: 1 | -1) => {
+    if (!session || !ident) return;
+    const r = Math.max(1, Math.round(Math.hypot(session.w, session.h) / 500));
+    const m = morph(ident.mask, session.w, session.h, dir * r);
+    if (dir > 0) for (let i = 0; i < m.length; i++) if (session.li.bg.floor[i]) m[i] = ident.mask[i];
+    identify(m, ident.kind);
+  };
+
+  const undoSelection = () => {
+    const prev = selHistory.current.pop();
+    setIdent(prev ?? null);
   };
 
   /** Turn the marked area into a separate part (e.g. a leather panel that was grouped with fabric). */
@@ -207,7 +276,7 @@ export default function App() {
     setVersion((v) => v + 1);
     setActiveGroup(part.groupId);
     setIdentifyOn(false);
-    setIdent(null);
+    clearSelection();
     notify(`“${part.name}” is now its own part — choose its finish.`);
   };
 
@@ -567,7 +636,7 @@ export default function App() {
                 if (i >= 0) setActiveGroup(session.spec.parts[i].groupId);
               }}
               diff={fidelity?.heat}
-              identify={mode === "configure" && identifyOn ? { mask: ident?.mask ?? null, onArea: (m, pi) => identify(m, pi >= 0 ? session.spec.parts[pi].kind : undefined) } : null}
+              identify={mode === "configure" && identifyOn ? { mask: ident?.mask ?? null, mode: selLocked ? "locked" : !ident ? "new" : selMode, onGesture: onSelectGesture } : null}
               rendererRef={rendererRef}
               toDraw={toDraw}
               editor={
@@ -594,6 +663,17 @@ export default function App() {
           {loading && <div className="loading">Preparing product…</div>}
           {hoverPart >= 0 && session && mode === "configure" && !identifyOn && (
             <div className="hover-tag">{session.spec.groups.find((g) => g.id === session.spec.parts[hoverPart]?.groupId)?.name}</div>
+          )}
+          {identifyOn && session && mode === "configure" && (
+            <div className={`sel-chip ${selLocked ? "locked" : !ident ? "" : selMode}`} data-testid="sel-chip">
+              {selLocked
+                ? "🔒 Selection locked — choose what to do in the panel"
+                : !ident
+                  ? "Click a part, or draw a loop around an area"
+                  : selMode === "add"
+                    ? "＋ Adding: click or loop more of the area"
+                    : "− Removing: click or loop what should not be selected"}
+            </div>
           )}
           {fidelity && view === "diff" && (
             <div className="fidelity-card" data-testid="fidelity">
@@ -664,22 +744,29 @@ export default function App() {
         {mode === "configure" && spec && (
           <aside className="right">
             {!spec.model && session && !identifyOn && (
-              <button className={`btn wide identify-btn ${identifyOn ? "on" : ""}`} onClick={() => (setIdentifyOn((o) => !o), setIdent(null))} data-testid="identify">
+              <button className={`btn wide identify-btn ${identifyOn ? "on" : ""}`} onClick={() => (setIdentifyOn(true), clearSelection())} data-testid="identify">
                 🔍 Identify a material
               </button>
             )}
             {identifyOn && session ? (
               <IdentifyPanel
                 ident={ident}
+                locked={selLocked}
+                mode={selMode}
+                canUndo={selHistory.current.length > 0}
+                onMode={setSelMode}
+                onGrow={growSelection}
+                onUndo={undoSelection}
+                onLock={setSelLocked}
                 groups={spec.groups}
                 selection={st.selection}
                 materials={matMap}
-                onKind={(k) => ident && identify(ident.mask, k)}
+                onKind={(k) => ident && identify(ident.mask, k, false)}
                 onApply={(gid, mid) => pick(gid, mid)}
-                onOpenGroup={(gid) => (setActiveGroup(gid), setIdentifyOn(false), setIdent(null))}
+                onOpenGroup={(gid) => (setActiveGroup(gid), setIdentifyOn(false), clearSelection())}
                 onSplit={splitIdentified}
-                onClear={() => setIdent(null)}
-                onClose={() => (setIdentifyOn(false), setIdent(null))}
+                onClear={clearSelection}
+                onClose={() => (setIdentifyOn(false), clearSelection())}
               />
             ) : (
             <>

@@ -69,11 +69,25 @@ await page.waitForSelector("[data-testid=ident-result]");
 const identText = await page.$eval("[data-testid=identify-panel]", (e) => e.innerText);
 if (!/Outer shell/.test(identText) || !/Leather/.test(identText)) fail("identify did not name the leather shell");
 else console.log("identify click ok:", identText.match(/CLOSEST MOBICA FINISHES\s+(\S+)/i)?.[1]);
+await page.click("[data-testid=lock]");
 await page.click("text=Mark another area");
 await page.mouse.move(...pt(560, 560));
 await page.mouse.down();
 for (const [x, y] of [[840, 560], [840, 760], [560, 760], [560, 565]]) await page.mouse.move(...pt(x, y), { steps: 6 });
 await page.mouse.up();
+// fix the selection: remove a patch, undo it, then lock
+await page.waitForSelector("[data-testid=refine]");
+await page.click("[data-testid=mode-remove]");
+await page.mouse.move(...pt(650, 620));
+await page.mouse.down();
+for (const [x, y] of [[720, 620], [720, 690], [650, 690], [650, 622]]) await page.mouse.move(...pt(x, y), { steps: 4 });
+await page.mouse.up();
+await page.waitForTimeout(800);
+await page.click("[data-testid=undo]");
+await page.click("[data-testid=lock]");
+if (!(await page.$("[data-testid=locked]"))) fail("selection did not lock");
+await page.mouse.click(...pt(470, 900)); // clicks on the photo must not change a locked selection
+if (!(await page.$("[data-testid=locked]"))) fail("locked selection changed on click");
 await page.waitForSelector("[data-testid=ident-split]");
 await page.click("[data-testid=ident-split]");
 await page.waitForTimeout(1500);

@@ -63,11 +63,16 @@ Deploy to Cloudflare Pages: build command `npm run build`, output directory `dis
    "Copy Excel row" (tab-separated: SKU, product, every code, file name); the file name itself carries the codes.
 8. **Restore**: drop an exported PNG back onto the app → it switches to that product and re-applies its exact codes.
    The URL is also shareable (`#/product-id?group=material-id…`).
-9. **Identify a material** (button above the part list): **click** anything on the photo to light up exactly that part,
-   or **press and drag** to draw around a specific spot. The panel shows the material type (correctable with one click),
-   the measured colour, which part the area belongs to (with a warning when it straddles two parts), and the closest
-   Mobica codes with a plain-language match level (Very close / Close / Similar). Click a code to apply it, or
-   **Make this area its own part** to split it off (e.g. a leather panel that was grouped with the fabric).
+9. **Identify a material** (button above the part list), in three steps:
+   1. **Mark** — click a part to select exactly that part, or draw a loop around an area. Loops don't need to be neat:
+      the outline **snaps to the material you mostly circled** (pixels deep inside the loop decide which material you
+      meant), follows its real edges a little past a line drawn too tight, and drops other materials the loop caught.
+      A loop that is essentially one existing part locks onto exactly that part.
+   2. **Check & lock** — after the first pick, clicks and loops **change** the selection instead of replacing it:
+      *Add to it* / *Remove from it* (a removal loop cuts out exactly what you draw), *Bigger* / *Smaller*, *Undo*,
+      *Start over*. **Lock** freezes it (green outline); clicks on the photo can no longer change it.
+   3. **Use it** — material type (correctable), measured colour, owning part (warns if it straddles two), the closest
+      Mobica codes with a plain match level; apply a code, open the part, or **make this area its own part**.
 
 The three demo photos supplied later at 1672 px (tub chair, club chair, executive desk) replace the upscaled
 480 px originals; they were registered to the old frames (ECC alignment) and the part masks re-snapped to them.

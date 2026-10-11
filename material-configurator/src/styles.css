@@ -305,3 +305,21 @@ code { font-size: 11px; background: var(--bg); padding: 1px 5px; border-radius: 
 .match-tag { margin-top: 2px; font-weight: 600; }
 .match-tag.good { color: #2f7d4f !important; }
 .ident-actions { display: grid; gap: 8px; margin-top: 4px; }
+.ident-steps { display: flex; gap: 6px; list-style: none; margin: 0; padding: 0; counter-reset: st; }
+.ident-steps li { flex: 1; font-size: 11px; font-weight: 600; text-align: center; padding: 6px 4px; border-radius: 8px; background: #f1eee8; color: var(--muted); counter-increment: st; }
+.ident-steps li::before { content: counter(st) ". "; }
+.ident-steps li.on { background: var(--ink); color: #fff; }
+.ident-steps li.done { background: var(--accent-soft); color: var(--accent); }
+.refine { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fbfaf7; }
+.refine p { margin: 0; }
+.hl { background: #ffd23f; padding: 0 3px; border-radius: 3px; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line-2); border-radius: 10px; overflow: hidden; }
+.seg button { border: 0; background: #fff; padding: 9px 6px; font-weight: 600; font-size: 13px; }
+.seg button + button { border-left: 1px solid var(--line-2); }
+.seg button.on { background: var(--ink); color: #fff; }
+.seg button.on.remove { background: #b3261e; }
+.locked-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-radius: 10px; background: #e6f4ec; color: #1f6b41; font-weight: 600; font-size: 13px; }
+.link { border: 0; background: none; color: var(--accent); text-decoration: underline; padding: 0; font-size: 13px; }
+.sel-chip { position: absolute; left: 50%; top: 58px; transform: translateX(-50%); background: rgba(28, 27, 25, 0.88); color: #fff; font-size: 13px; padding: 7px 14px; border-radius: 999px; pointer-events: none; white-space: nowrap; max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis; }
+.sel-chip.remove { background: #b3261e; }
+.sel-chip.locked { background: #1f6b41; }
